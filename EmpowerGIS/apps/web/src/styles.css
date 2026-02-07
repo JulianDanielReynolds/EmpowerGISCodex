@@ -1,0 +1,281 @@
+:root {
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  color: #0b1b2b;
+  background: radial-gradient(circle at top left, #d6eef8 0%, #f0f7fa 40%, #f7f4ee 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.boot {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  font-size: 1.1rem;
+}
+
+.app-layout {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #ccd6df;
+  background: rgba(248, 251, 253, 0.9);
+  backdrop-filter: blur(8px);
+}
+
+.top-bar h1 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.top-bar p {
+  margin: 0.2rem 0 0;
+  color: #3e566b;
+}
+
+.top-bar-right {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.content {
+  display: grid;
+  grid-template-columns: 280px 1fr 320px;
+  gap: 0.75rem;
+  padding: 0.75rem;
+}
+
+.panel {
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid #ccd6df;
+  border-radius: 12px;
+  padding: 1rem;
+  overflow: auto;
+}
+
+.panel h2 {
+  margin: 0 0 0.8rem;
+  font-size: 1rem;
+}
+
+.panel ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.panel label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.panel table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.panel th,
+.panel td {
+  font-size: 0.86rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid #e0e8ef;
+  text-align: left;
+  vertical-align: top;
+}
+
+.panel th {
+  color: #375168;
+  width: 33%;
+}
+
+.map-stage {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 0.75rem;
+  position: relative;
+}
+
+.map-toolbar {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.map-toolbar input {
+  flex: 1;
+  border: 1px solid #bccad6;
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.95rem;
+}
+
+.map-canvas {
+  border: 1px solid #bccad6;
+  border-radius: 12px;
+  background:
+    linear-gradient(120deg, rgba(154, 192, 217, 0.25), rgba(233, 240, 228, 0.35)),
+    repeating-linear-gradient(45deg, rgba(30, 60, 80, 0.08) 0 1px, transparent 1px 36px);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1e4056;
+  text-align: center;
+  padding: 2rem;
+}
+
+.mapbox-host {
+  position: absolute;
+  inset: 0;
+}
+
+.search-dropdown {
+  position: absolute;
+  top: 3rem;
+  left: 0;
+  right: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid #bccad6;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 10px 20px rgba(8, 26, 41, 0.15);
+  z-index: 3;
+}
+
+.search-result {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #edf2f7;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+  padding: 0.7rem 0.8rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.search-result:hover {
+  background: #f2f8fc;
+}
+
+.search-result span {
+  color: #4f6b82;
+  font-size: 0.82rem;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(7, 21, 35, 0.64);
+  backdrop-filter: blur(4px);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  z-index: 10;
+}
+
+.modal {
+  width: min(680px, 100%);
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 1.2rem;
+  border: 1px solid #ccd6df;
+}
+
+.modal h1,
+.modal h2 {
+  margin: 0 0 0.6rem;
+}
+
+.modal p,
+.modal li {
+  color: #233b50;
+  line-height: 1.45;
+}
+
+.modal ol {
+  margin: 0.5rem 0 1rem;
+  padding-left: 1.3rem;
+}
+
+.auth form {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.auth label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.auth input {
+  border: 1px solid #bccad6;
+  border-radius: 8px;
+  padding: 0.6rem 0.65rem;
+}
+
+.primary {
+  border: 0;
+  background: #0f5f8f;
+  color: white;
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ghost {
+  border: 1px solid #91a8bc;
+  border-radius: 8px;
+  background: transparent;
+  padding: 0.45rem 0.65rem;
+  cursor: pointer;
+}
+
+.error {
+  color: #9b2c2c;
+  margin: 0;
+}
+
+@media (max-width: 1100px) {
+  .content {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr auto;
+  }
+
+  .panel {
+    max-height: 240px;
+  }
+
+  .search-dropdown {
+    top: 6.8rem;
+  }
+}

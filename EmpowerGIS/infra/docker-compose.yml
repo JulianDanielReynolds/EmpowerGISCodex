@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: empowergis-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: empowergis
+      POSTGRES_USER: empowergis
+      POSTGRES_PASSWORD: empowergis_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - empowergis-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U empowergis -d empowergis"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: empowergis-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - empowergis-redis-data:/data
+
+volumes:
+  empowergis-postgres-data:
+  empowergis-redis-data:

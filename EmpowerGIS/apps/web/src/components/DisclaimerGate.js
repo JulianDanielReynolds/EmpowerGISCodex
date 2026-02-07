@@ -1,0 +1,4 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+export default function DisclaimerGate({ onAccept }) {
+    return (_jsx("div", { className: "overlay", children: _jsxs("section", { className: "modal", children: [_jsx("h1", { children: "EmpowerGIS Disclaimer" }), _jsx("p", { children: "This platform presents public records and infrastructure datasets for planning support. Data may be incomplete, delayed, or inconsistent across jurisdictions." }), _jsxs("ol", { children: [_jsx("li", { children: "Do not treat this platform as the legal source of record." }), _jsx("li", { children: "Verify boundaries, zoning, and utility conflicts with local authorities." }), _jsx("li", { children: "Use professional judgment before design, acquisition, or entitlement decisions." }), _jsx("li", { children: "By continuing, you agree to these usage terms." })] }), _jsx("button", { className: "primary", onClick: onAccept, children: "I Understand, Continue" })] }) }));
+}

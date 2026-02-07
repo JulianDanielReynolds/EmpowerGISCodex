@@ -1,0 +1,42 @@
+{
+  "region": "austin-metro",
+  "targetLayers": [
+    "floodplain",
+    "contours",
+    "zoning",
+    "water-infrastructure",
+    "sewer-infrastructure",
+    "cities-etj",
+    "opportunity-zones"
+  ],
+  "sources": {
+    "floodplain": [
+      "flood-zones/fema_austin_metro_floodplain.geojson"
+    ],
+    "contours": [
+      "contours/austin_east_contours.geojson",
+      "contours/austin_west_contours.geojson"
+    ],
+    "zoning": [
+      "zoning/austin_zoning_small_scale.geojson",
+      "zoning/Zoning_Districts.geojson"
+    ],
+    "water-infrastructure": [
+      "water/Water_Transmission_Main.geojson",
+      "water/round_rock_water_service_lines.geojson"
+    ],
+    "sewer-infrastructure": [
+      "sewer/Forcemain.geojson",
+      "sewer/Wastewater_Manhole.geojson"
+    ],
+    "cities-etj": [
+      "cities/williamson_cities.geojson",
+      "cities/williamson_etj.geojson",
+      "cities/hays_city_boundaries.geojson",
+      "cities/hays_etj_boundaries.geojson"
+    ],
+    "opportunity-zones": [
+      "opportunity-zones/Opportunity_Zones_2244808886865986276.geojson"
+    ]
+  }
+}

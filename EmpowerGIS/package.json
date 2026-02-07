@@ -1,0 +1,26 @@
+{
+  "name": "empowergis",
+  "version": "0.1.0",
+  "private": true,
+  "description": "EmpowerGIS monorepo (web, api, data pipeline)",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "data-pipeline"
+  ],
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "scripts": {
+    "build": "npm run --ws --if-present build",
+    "dev": "npm run --ws --if-present dev",
+    "lint": "npm run --ws --if-present lint",
+    "typecheck": "npm run --ws --if-present typecheck",
+    "test": "npm run --ws --if-present test",
+    "dev:api": "npm run dev -w @empowergis/api",
+    "dev:web": "npm run dev -w @empowergis/web",
+    "db:migrate": "npm run migrate -w @empowergis/api",
+    "db:seed:dev": "npm run seed:dev -w @empowergis/api"
+  }
+}
