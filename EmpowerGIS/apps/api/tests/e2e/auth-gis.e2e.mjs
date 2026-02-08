@@ -129,6 +129,35 @@ async function apiRequest(endpoint, options = {}) {
   };
 }
 
+async function apiBinaryRequest(endpoint, options = {}) {
+  const { method = "GET", accessToken } = options;
+  const headers = {};
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  const response = await fetch(`${baseUrl}${endpoint}`, {
+    method,
+    headers
+  });
+
+  return {
+    status: response.status,
+    contentType: response.headers.get("content-type"),
+    body: Buffer.from(await response.arrayBuffer())
+  };
+}
+
+function lonLatToTileXY(longitude, latitude, zoom) {
+  const latRad = (latitude * Math.PI) / 180;
+  const tilesAtZoom = 2 ** zoom;
+  const x = Math.floor(((longitude + 180) / 360) * tilesAtZoom);
+  const y = Math.floor(
+    ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * tilesAtZoom
+  );
+  return { x, y };
+}
+
 async function insertFixtureData() {
   const versionResult = await db.query(
     `
@@ -379,4 +408,11 @@ test("auth and GIS flows succeed end-to-end", async () => {
   assert.equal(lookupResponse.status, 200, `lookup failed: ${lookupResponse.text}`);
   assert.equal(lookupResponse.payload?.parcelKey, fixtureParcelKey);
   assert.equal(lookupResponse.payload?.zoning, fixtureZoningCode);
+
+  const tileZoom = 14;
+  const { x: tileX, y: tileY } = lonLatToTileXY(fixtureLongitude, fixtureLatitude, tileZoom);
+  const tileResponse = await apiBinaryRequest(`/tiles/zoning/${tileZoom}/${tileX}/${tileY}.pbf`);
+  assert.equal(tileResponse.status, 200);
+  assert.equal(tileResponse.contentType, "application/x-protobuf");
+  assert.ok(tileResponse.body.length > 2, "expected non-empty zoning vector tile");
 });

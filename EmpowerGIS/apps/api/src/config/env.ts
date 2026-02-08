@@ -10,7 +10,7 @@ const envSchema = z.object({
   BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(15).default(12),
   CORS_ORIGINS: z.string().default("http://localhost:5173"),
   TILE_BASE_URL: z.string().url().optional(),
-  TILES_DIR: z.string().optional()
+  TILE_MAX_FEATURES: z.coerce.number().int().min(100).max(100_000).default(10_000)
 });
 
 const parsed = envSchema.safeParse(process.env);

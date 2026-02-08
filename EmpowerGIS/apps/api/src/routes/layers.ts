@@ -62,7 +62,7 @@ const BASE_LAYER_CATALOG: LayerCatalogEntry[] = [
 const defaultTileBaseUrl =
   env.NODE_ENV === "development"
     ? `http://localhost:${env.PORT}/tiles`
-    : "https://tiles.empowergis.com";
+    : "https://tiles.empowergis.com/tiles";
 const tileBaseUrl = (env.TILE_BASE_URL ?? defaultTileBaseUrl).replace(/\/$/, "");
 
 function canonicalLayerKey(input: string): string {

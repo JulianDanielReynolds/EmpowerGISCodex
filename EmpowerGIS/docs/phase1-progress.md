@@ -30,7 +30,11 @@ Date: 2026-02-07 (updated 2026-02-08)
    - `/Users/julianreynolds/Documents/New project/EmpowerGIS/apps/web/src/components/MapShell.tsx`
 10. End-to-end auth and GIS API test flow:
    - `/Users/julianreynolds/Documents/New project/EmpowerGIS/apps/api/tests/e2e/auth-gis.e2e.mjs`
+11. Live tile service path from PostGIS (ready for `tiles.empowergis.com/tiles`):
+   - `/Users/julianreynolds/Documents/New project/EmpowerGIS/apps/api/src/routes/tiles.ts`
+   - `/Users/julianreynolds/Documents/New project/EmpowerGIS/apps/api/src/routes/layers.ts`
+   - `/Users/julianreynolds/Documents/New project/EmpowerGIS/docs/domain-cutover.md`
 
 ## Remaining for Phase 1 completion
 
-1. Build tile service/CDN path with live MVT assets.
+1. None.

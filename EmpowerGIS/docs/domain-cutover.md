@@ -12,7 +12,7 @@ Date prepared: 2026-02-07
 
 1. Vercel project for web (`@empowergis/web`)
 2. Railway service for API (`@empowergis/api`)
-3. Object storage + CDN for tiles (Cloudflare R2 + CDN or AWS S3 + CloudFront)
+3. Tile host (`tiles.empowergis.com`) pointed to API tile routes with CDN/proxy caching enabled
 
 ## Required environment variables
 
@@ -31,7 +31,8 @@ Date prepared: 2026-02-07
 - `REFRESH_TOKEN_TTL_DAYS=14`
 - `BCRYPT_ROUNDS=12`
 - `CORS_ORIGINS=https://www.empowergis.com,https://empowergis.com`
-- `TILE_BASE_URL=https://tiles.empowergis.com`
+- `TILE_BASE_URL=https://tiles.empowergis.com/tiles`
+- `TILE_MAX_FEATURES=10000`
 
 ## DNS (GoDaddy)
 
@@ -58,3 +59,7 @@ Date prepared: 2026-02-07
 4. Registration/login works and second login invalidates first session.
 5. Property search and click lookups return parcel data.
 6. Layer catalog API returns all required startup layers.
+7. Tile metadata loads:
+   - `https://tiles.empowergis.com/tiles/zoning/metadata.json`
+8. Sample tile fetch succeeds:
+   - `https://tiles.empowergis.com/tiles/zoning/10/301/385.pbf`

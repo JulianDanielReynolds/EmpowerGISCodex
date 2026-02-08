@@ -12,7 +12,7 @@ Backend APIs for:
 - `src/routes/auth.ts` - register/login/logout/refresh/me
 - `src/routes/properties.ts` - coordinate lookup, search, and parcel stats
 - `src/routes/layers.ts` - layer catalog and tile templates
-- `src/routes/tiles.ts` - local vector tile serving for development
+- `src/routes/tiles.ts` - live PostGIS vector tile endpoint (`/tiles/:layer/:z/:x/:y.pbf`)
 - `src/middleware/auth.ts` - token/session verification middleware
 - `migrations/` - baseline PostGIS + auth + GIS schema
 
