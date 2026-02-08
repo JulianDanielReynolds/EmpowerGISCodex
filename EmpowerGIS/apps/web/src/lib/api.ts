@@ -88,6 +88,21 @@ class ApiError extends Error {
 let refreshInFlight: Promise<SessionTokens> | null = null;
 let refreshInFlightForToken: string | null = null;
 
+function normalizeRequestError(error: unknown): Error {
+  if (error instanceof ApiError) {
+    return error;
+  }
+
+  if (error instanceof TypeError) {
+    return new Error(
+      `Unable to reach the EmpowerGIS API at ${API_BASE_URL}. ` +
+        "Confirm the API is running (`npm run dev:api`) and VITE_API_BASE_URL is correct."
+    );
+  }
+
+  return error instanceof Error ? error : new Error("Request failed");
+}
+
 async function parseError(response: Response): Promise<ApiError> {
   const payload = await response.json().catch(() => ({}));
   const message = typeof payload.error === "string" ? payload.error : `Request failed (${response.status})`;
@@ -99,46 +114,54 @@ async function executeAuthorizedRequest<T>(
   accessToken: string,
   init?: RequestInit
 ): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-      ...(init?.headers ?? {})
+  try {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+        ...(init?.headers ?? {})
+      }
+    });
+
+    if (!response.ok) {
+      throw await parseError(response);
     }
-  });
 
-  if (!response.ok) {
-    throw await parseError(response);
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    return response.json() as Promise<T>;
+  } catch (error) {
+    throw normalizeRequestError(error);
   }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json() as Promise<T>;
 }
 
 async function refreshAccessToken(refreshToken: string): Promise<SessionTokens> {
-  const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refreshToken })
-  });
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken })
+    });
 
-  if (!response.ok) {
-    throw await parseError(response);
+    if (!response.ok) {
+      throw await parseError(response);
+    }
+
+    const payload = await response.json().catch(() => ({})) as Partial<SessionTokens>;
+    if (typeof payload.accessToken !== "string" || typeof payload.refreshToken !== "string") {
+      throw new Error("Invalid refresh response from API");
+    }
+
+    return {
+      accessToken: payload.accessToken,
+      refreshToken: payload.refreshToken
+    };
+  } catch (error) {
+    throw normalizeRequestError(error);
   }
-
-  const payload = await response.json().catch(() => ({})) as Partial<SessionTokens>;
-  if (typeof payload.accessToken !== "string" || typeof payload.refreshToken !== "string") {
-    throw new Error("Invalid refresh response from API");
-  }
-
-  return {
-    accessToken: payload.accessToken,
-    refreshToken: payload.refreshToken
-  };
 }
 
 async function refreshWithLock(refreshToken: string): Promise<SessionTokens> {
@@ -185,20 +208,24 @@ export async function register(payload: {
   phoneNumber: string;
   companyName: string;
 }): Promise<{ user: AuthUser }> {
-  const response = await fetch(`${API_BASE_URL}/auth/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      ...payload,
-      disclaimerAccepted: true
-    })
-  });
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...payload,
+        disclaimerAccepted: true
+      })
+    });
 
-  if (!response.ok) {
-    throw await parseError(response);
+    if (!response.ok) {
+      throw await parseError(response);
+    }
+
+    return response.json() as Promise<{ user: AuthUser }>;
+  } catch (error) {
+    throw normalizeRequestError(error);
   }
-
-  return response.json() as Promise<{ user: AuthUser }>;
 }
 
 export async function login(payload: {
@@ -206,17 +233,21 @@ export async function login(payload: {
   password: string;
   deviceFingerprint?: string;
 }): Promise<LoginResponse> {
-  const response = await fetch(`${API_BASE_URL}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
 
-  if (!response.ok) {
-    throw await parseError(response);
+    if (!response.ok) {
+      throw await parseError(response);
+    }
+
+    return response.json() as Promise<LoginResponse>;
+  } catch (error) {
+    throw normalizeRequestError(error);
   }
-
-  return response.json() as Promise<LoginResponse>;
 }
 
 export async function logout(accessToken: string): Promise<void> {

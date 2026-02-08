@@ -9,45 +9,65 @@ class ApiError extends Error {
 }
 let refreshInFlight = null;
 let refreshInFlightForToken = null;
+function normalizeRequestError(error) {
+    if (error instanceof ApiError) {
+        return error;
+    }
+    if (error instanceof TypeError) {
+        return new Error(`Unable to reach the EmpowerGIS API at ${API_BASE_URL}. ` +
+            "Confirm the API is running (`npm run dev:api`) and VITE_API_BASE_URL is correct.");
+    }
+    return error instanceof Error ? error : new Error("Request failed");
+}
 async function parseError(response) {
     const payload = await response.json().catch(() => ({}));
     const message = typeof payload.error === "string" ? payload.error : `Request failed (${response.status})`;
     return new ApiError(response.status, message);
 }
 async function executeAuthorizedRequest(path, accessToken, init) {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
-        ...init,
-        headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-            ...(init?.headers ?? {})
+    try {
+        const response = await fetch(`${API_BASE_URL}${path}`, {
+            ...init,
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${accessToken}`,
+                ...(init?.headers ?? {})
+            }
+        });
+        if (!response.ok) {
+            throw await parseError(response);
         }
-    });
-    if (!response.ok) {
-        throw await parseError(response);
+        if (response.status === 204) {
+            return undefined;
+        }
+        return response.json();
     }
-    if (response.status === 204) {
-        return undefined;
+    catch (error) {
+        throw normalizeRequestError(error);
     }
-    return response.json();
 }
 async function refreshAccessToken(refreshToken) {
-    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refreshToken })
-    });
-    if (!response.ok) {
-        throw await parseError(response);
+    try {
+        const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refreshToken })
+        });
+        if (!response.ok) {
+            throw await parseError(response);
+        }
+        const payload = await response.json().catch(() => ({}));
+        if (typeof payload.accessToken !== "string" || typeof payload.refreshToken !== "string") {
+            throw new Error("Invalid refresh response from API");
+        }
+        return {
+            accessToken: payload.accessToken,
+            refreshToken: payload.refreshToken
+        };
     }
-    const payload = await response.json().catch(() => ({}));
-    if (typeof payload.accessToken !== "string" || typeof payload.refreshToken !== "string") {
-        throw new Error("Invalid refresh response from API");
+    catch (error) {
+        throw normalizeRequestError(error);
     }
-    return {
-        accessToken: payload.accessToken,
-        refreshToken: payload.refreshToken
-    };
 }
 async function refreshWithLock(refreshToken) {
     if (refreshInFlight && refreshInFlightForToken === refreshToken) {
@@ -79,29 +99,39 @@ async function authorizedRequest(path, accessToken, init, options) {
     }
 }
 export async function register(payload) {
-    const response = await fetch(`${API_BASE_URL}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            ...payload,
-            disclaimerAccepted: true
-        })
-    });
-    if (!response.ok) {
-        throw await parseError(response);
+    try {
+        const response = await fetch(`${API_BASE_URL}/auth/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                ...payload,
+                disclaimerAccepted: true
+            })
+        });
+        if (!response.ok) {
+            throw await parseError(response);
+        }
+        return response.json();
     }
-    return response.json();
+    catch (error) {
+        throw normalizeRequestError(error);
+    }
 }
 export async function login(payload) {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-    });
-    if (!response.ok) {
-        throw await parseError(response);
+    try {
+        const response = await fetch(`${API_BASE_URL}/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+            throw await parseError(response);
+        }
+        return response.json();
     }
-    return response.json();
+    catch (error) {
+        throw normalizeRequestError(error);
+    }
 }
 export async function logout(accessToken) {
     await executeAuthorizedRequest("/auth/logout", accessToken, {
