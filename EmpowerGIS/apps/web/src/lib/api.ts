@@ -88,6 +88,15 @@ class ApiError extends Error {
 let refreshInFlight: Promise<SessionTokens> | null = null;
 let refreshInFlightForToken: string | null = null;
 
+type ApiErrorDetail = {
+  message?: string;
+};
+
+type ApiErrorPayload = {
+  error?: unknown;
+  details?: unknown;
+};
+
 function normalizeRequestError(error: unknown): Error {
   if (error instanceof ApiError) {
     return error;
@@ -104,8 +113,28 @@ function normalizeRequestError(error: unknown): Error {
 }
 
 async function parseError(response: Response): Promise<ApiError> {
-  const payload = await response.json().catch(() => ({}));
-  const message = typeof payload.error === "string" ? payload.error : `Request failed (${response.status})`;
+  const payload = await response.json().catch(() => ({} as ApiErrorPayload)) as ApiErrorPayload;
+  const baseMessage = typeof payload.error === "string" ? payload.error : `Request failed (${response.status})`;
+  const detailMessage = Array.isArray(payload.details)
+    ? payload.details
+        .map((detail: unknown) => {
+          const parsed = detail as ApiErrorDetail | null;
+          if (parsed && typeof parsed.message === "string") {
+            return parsed.message;
+          }
+          if (detail && typeof detail === "object" && "message" in detail && typeof (detail as { message?: unknown }).message === "string") {
+            return (detail as { message: string }).message;
+          }
+          if (typeof detail === "string") {
+            return detail;
+          }
+          return null;
+        })
+        .filter((message: string | null): message is string => Boolean(message))
+        .join("; ")
+    : "";
+
+  const message = detailMessage ? `${baseMessage}: ${detailMessage}` : baseMessage;
   return new ApiError(response.status, message);
 }
 

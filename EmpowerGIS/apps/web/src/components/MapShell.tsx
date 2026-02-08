@@ -21,6 +21,7 @@ interface MapShellProps {
 }
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string | undefined;
+const PLACEHOLDER_MAPBOX_TOKEN = "replace-with-mapbox-public-token";
 
 const LAYER_STYLE: Record<string, { type: "fill" | "line"; paint: Record<string, unknown> }> = {
   floodplain: {
@@ -109,7 +110,7 @@ export default function MapShell({
   const [searchResults, setSearchResults] = useState<PropertySearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  const canRenderMap = Boolean(MAPBOX_TOKEN);
+  const canRenderMap = Boolean(MAPBOX_TOKEN && !MAPBOX_TOKEN.includes(PLACEHOLDER_MAPBOX_TOKEN));
   const authRequestOptions = useMemo(
     () => ({
       refreshToken,
@@ -373,7 +374,9 @@ export default function MapShell({
             {canRenderMap ? (
               <div ref={mapContainerRef} className="mapbox-host" />
             ) : (
-              <p>Set `VITE_MAPBOX_ACCESS_TOKEN` in the web env file to enable the interactive map.</p>
+              <p>
+                Set a valid `VITE_MAPBOX_ACCESS_TOKEN` in the web env file to enable the interactive map.
+              </p>
             )}
           </div>
         </section>

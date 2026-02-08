@@ -21,7 +21,26 @@ function normalizeRequestError(error) {
 }
 async function parseError(response) {
     const payload = await response.json().catch(() => ({}));
-    const message = typeof payload.error === "string" ? payload.error : `Request failed (${response.status})`;
+    const baseMessage = typeof payload.error === "string" ? payload.error : `Request failed (${response.status})`;
+    const detailMessage = Array.isArray(payload.details)
+        ? payload.details
+            .map((detail) => {
+            const parsed = detail;
+            if (parsed && typeof parsed.message === "string") {
+                return parsed.message;
+            }
+            if (detail && typeof detail === "object" && "message" in detail && typeof detail.message === "string") {
+                return detail.message;
+            }
+            if (typeof detail === "string") {
+                return detail;
+            }
+            return null;
+        })
+            .filter((message) => Boolean(message))
+            .join("; ")
+        : "";
+    const message = detailMessage ? `${baseMessage}: ${detailMessage}` : baseMessage;
     return new ApiError(response.status, message);
 }
 async function executeAuthorizedRequest(path, accessToken, init) {
