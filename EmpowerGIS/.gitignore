@@ -25,5 +25,6 @@ yarn-debug.log*
 
 # Local data staging
 raw-data/
+data/raw/
 tmp/
 data-pipeline/output/
