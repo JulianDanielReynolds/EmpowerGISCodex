@@ -65,7 +65,7 @@ function formatCurrency(value) {
         maximumFractionDigits: 0
     });
 }
-export default function MapShell({ user, accessToken, onLogout }) {
+export default function MapShell({ user, accessToken, refreshToken, onSessionTokensUpdated, onLogout }) {
     const mapContainerRef = useRef(null);
     const mapRef = useRef(null);
     const markerRef = useRef(null);
@@ -79,6 +79,10 @@ export default function MapShell({ user, accessToken, onLogout }) {
     const [searchResults, setSearchResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
     const canRenderMap = Boolean(MAPBOX_TOKEN);
+    const authRequestOptions = useMemo(() => ({
+        refreshToken,
+        onSessionTokensUpdated
+    }), [refreshToken, onSessionTokensUpdated]);
     useEffect(() => {
         if (!accessToken) {
             setLayers([]);
@@ -88,7 +92,7 @@ export default function MapShell({ user, accessToken, onLogout }) {
         let cancelled = false;
         void (async () => {
             try {
-                const catalog = await getLayerCatalog(accessToken);
+                const catalog = await getLayerCatalog(accessToken, authRequestOptions);
                 if (cancelled)
                     return;
                 setLayers(catalog);
@@ -107,7 +111,7 @@ export default function MapShell({ user, accessToken, onLogout }) {
         return () => {
             cancelled = true;
         };
-    }, [accessToken]);
+    }, [accessToken, authRequestOptions]);
     useEffect(() => {
         if (!canRenderMap || !mapContainerRef.current || mapRef.current) {
             return;
@@ -181,7 +185,7 @@ export default function MapShell({ user, accessToken, onLogout }) {
             void (async () => {
                 setIsSearching(true);
                 try {
-                    const results = await searchProperties(accessToken, searchQuery, 8);
+                    const results = await searchProperties(accessToken, searchQuery, 8, authRequestOptions);
                     setSearchResults(results);
                 }
                 catch {
@@ -193,7 +197,7 @@ export default function MapShell({ user, accessToken, onLogout }) {
             })();
         }, 300);
         return () => clearTimeout(timeoutId);
-    }, [accessToken, searchQuery]);
+    }, [accessToken, searchQuery, authRequestOptions]);
     const activeLayerCount = useMemo(() => Object.values(layerVisibility).filter(Boolean).length, [layerVisibility]);
     const loadPropertyAt = useCallback(async (longitude, latitude) => {
         if (!accessToken)
@@ -201,7 +205,7 @@ export default function MapShell({ user, accessToken, onLogout }) {
         setIsLoadingProperty(true);
         setPropertyError(null);
         try {
-            const property = await getPropertyByCoordinates(accessToken, longitude, latitude);
+            const property = await getPropertyByCoordinates(accessToken, longitude, latitude, authRequestOptions);
             setSelectedProperty(property);
             if (mapRef.current) {
                 if (!markerRef.current) {
@@ -217,7 +221,7 @@ export default function MapShell({ user, accessToken, onLogout }) {
         finally {
             setIsLoadingProperty(false);
         }
-    }, [accessToken]);
+    }, [accessToken, authRequestOptions]);
     const handleMapClick = useCallback((event) => {
         const { lng, lat } = event.lngLat;
         void loadPropertyAt(lng, lat);

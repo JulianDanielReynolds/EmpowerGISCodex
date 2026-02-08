@@ -1,6 +1,6 @@
 # Phase 1 Progress
 
-Date: 2026-02-07
+Date: 2026-02-07 (updated 2026-02-08)
 
 ## Implemented in this pass
 
@@ -24,9 +24,13 @@ Date: 2026-02-07
    - `/Users/julianreynolds/Documents/New project/EmpowerGIS/data-pipeline/scripts/import-austin-postgis.mjs`
 8. Local tile serving route for development:
    - `/Users/julianreynolds/Documents/New project/EmpowerGIS/apps/api/src/routes/tiles.ts`
+9. Web refresh-token rotation and request retry on `401`:
+   - `/Users/julianreynolds/Documents/New project/EmpowerGIS/apps/web/src/lib/api.ts`
+   - `/Users/julianreynolds/Documents/New project/EmpowerGIS/apps/web/src/App.tsx`
+   - `/Users/julianreynolds/Documents/New project/EmpowerGIS/apps/web/src/components/MapShell.tsx`
+10. End-to-end auth and GIS API test flow:
+   - `/Users/julianreynolds/Documents/New project/EmpowerGIS/apps/api/tests/e2e/auth-gis.e2e.mjs`
 
 ## Remaining for Phase 1 completion
 
-1. Add refresh token rotation in the web client.
-2. Build tile service/CDN path with live MVT assets.
-3. Add end-to-end auth and GIS API tests.
+1. Build tile service/CDN path with live MVT assets.

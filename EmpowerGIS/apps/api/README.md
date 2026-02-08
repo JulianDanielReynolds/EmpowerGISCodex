@@ -27,3 +27,11 @@ Backend APIs for:
    - `npm run dev -w @empowergis/api`
 5. Optional dev seed:
    - `npm run seed:dev -w @empowergis/api`
+
+## End-to-end tests
+
+Run from repository root:
+
+- `npm run test:e2e:api`
+
+This runs a real API process against your configured Postgres connection and validates auth/session and GIS endpoints.

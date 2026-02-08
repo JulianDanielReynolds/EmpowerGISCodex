@@ -8,12 +8,15 @@ import {
   type AuthUser,
   type LayerCatalogItem,
   type PropertyLookupResult,
-  type PropertySearchResult
+  type PropertySearchResult,
+  type SessionTokens
 } from "../lib/api";
 
 interface MapShellProps {
   user: AuthUser | null;
   accessToken: string | null;
+  refreshToken: string | null;
+  onSessionTokensUpdated: (tokens: SessionTokens) => void;
   onLogout: () => void;
 }
 
@@ -83,7 +86,13 @@ function formatCurrency(value?: number | null): string {
   });
 }
 
-export default function MapShell({ user, accessToken, onLogout }: MapShellProps) {
+export default function MapShell({
+  user,
+  accessToken,
+  refreshToken,
+  onSessionTokensUpdated,
+  onLogout
+}: MapShellProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const markerRef = useRef<mapboxgl.Marker | null>(null);
@@ -101,6 +110,13 @@ export default function MapShell({ user, accessToken, onLogout }: MapShellProps)
   const [isSearching, setIsSearching] = useState(false);
 
   const canRenderMap = Boolean(MAPBOX_TOKEN);
+  const authRequestOptions = useMemo(
+    () => ({
+      refreshToken,
+      onSessionTokensUpdated
+    }),
+    [refreshToken, onSessionTokensUpdated]
+  );
 
   useEffect(() => {
     if (!accessToken) {
@@ -112,7 +128,7 @@ export default function MapShell({ user, accessToken, onLogout }: MapShellProps)
     let cancelled = false;
     void (async () => {
       try {
-        const catalog = await getLayerCatalog(accessToken);
+        const catalog = await getLayerCatalog(accessToken, authRequestOptions);
         if (cancelled) return;
         setLayers(catalog);
         setLayersError(null);
@@ -131,7 +147,7 @@ export default function MapShell({ user, accessToken, onLogout }: MapShellProps)
     return () => {
       cancelled = true;
     };
-  }, [accessToken]);
+  }, [accessToken, authRequestOptions]);
 
   useEffect(() => {
     if (!canRenderMap || !mapContainerRef.current || mapRef.current) {
@@ -215,7 +231,7 @@ export default function MapShell({ user, accessToken, onLogout }: MapShellProps)
       void (async () => {
         setIsSearching(true);
         try {
-          const results = await searchProperties(accessToken, searchQuery, 8);
+          const results = await searchProperties(accessToken, searchQuery, 8, authRequestOptions);
           setSearchResults(results);
         } catch {
           setSearchResults([]);
@@ -226,7 +242,7 @@ export default function MapShell({ user, accessToken, onLogout }: MapShellProps)
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [accessToken, searchQuery]);
+  }, [accessToken, searchQuery, authRequestOptions]);
 
   const activeLayerCount = useMemo(
     () => Object.values(layerVisibility).filter(Boolean).length,
@@ -239,7 +255,7 @@ export default function MapShell({ user, accessToken, onLogout }: MapShellProps)
     setIsLoadingProperty(true);
     setPropertyError(null);
     try {
-      const property = await getPropertyByCoordinates(accessToken, longitude, latitude);
+      const property = await getPropertyByCoordinates(accessToken, longitude, latitude, authRequestOptions);
       setSelectedProperty(property);
 
       if (mapRef.current) {
@@ -254,7 +270,7 @@ export default function MapShell({ user, accessToken, onLogout }: MapShellProps)
     } finally {
       setIsLoadingProperty(false);
     }
-  }, [accessToken]);
+  }, [accessToken, authRequestOptions]);
 
   const handleMapClick = useCallback((event: mapboxgl.MapMouseEvent) => {
     const { lng, lat } = event.lngLat;

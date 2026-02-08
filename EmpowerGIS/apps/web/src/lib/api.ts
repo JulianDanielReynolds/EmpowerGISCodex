@@ -1,5 +1,15 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000/api";
 
+export interface SessionTokens {
+  accessToken: string;
+  refreshToken: string;
+}
+
+export interface AuthRequestOptions {
+  refreshToken?: string | null;
+  onSessionTokensUpdated?: (tokens: SessionTokens) => void;
+}
+
 export interface AuthUser {
   id: number;
   username: string;
@@ -65,13 +75,26 @@ export interface PropertySearchResult {
   latitude: number;
 }
 
-async function parseError(response: Response): Promise<Error> {
-  const payload = await response.json().catch(() => ({}));
-  const message = typeof payload.error === "string" ? payload.error : `Request failed (${response.status})`;
-  return new Error(message);
+class ApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
 }
 
-async function authorizedRequest<T>(
+let refreshInFlight: Promise<SessionTokens> | null = null;
+let refreshInFlightForToken: string | null = null;
+
+async function parseError(response: Response): Promise<ApiError> {
+  const payload = await response.json().catch(() => ({}));
+  const message = typeof payload.error === "string" ? payload.error : `Request failed (${response.status})`;
+  return new ApiError(response.status, message);
+}
+
+async function executeAuthorizedRequest<T>(
   path: string,
   accessToken: string,
   init?: RequestInit
@@ -94,6 +117,65 @@ async function authorizedRequest<T>(
   }
 
   return response.json() as Promise<T>;
+}
+
+async function refreshAccessToken(refreshToken: string): Promise<SessionTokens> {
+  const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refreshToken })
+  });
+
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+
+  const payload = await response.json().catch(() => ({})) as Partial<SessionTokens>;
+  if (typeof payload.accessToken !== "string" || typeof payload.refreshToken !== "string") {
+    throw new Error("Invalid refresh response from API");
+  }
+
+  return {
+    accessToken: payload.accessToken,
+    refreshToken: payload.refreshToken
+  };
+}
+
+async function refreshWithLock(refreshToken: string): Promise<SessionTokens> {
+  if (refreshInFlight && refreshInFlightForToken === refreshToken) {
+    return refreshInFlight;
+  }
+
+  refreshInFlightForToken = refreshToken;
+  refreshInFlight = refreshAccessToken(refreshToken);
+
+  try {
+    return await refreshInFlight;
+  } finally {
+    if (refreshInFlightForToken === refreshToken) {
+      refreshInFlight = null;
+      refreshInFlightForToken = null;
+    }
+  }
+}
+
+async function authorizedRequest<T>(
+  path: string,
+  accessToken: string,
+  init?: RequestInit,
+  options?: AuthRequestOptions
+): Promise<T> {
+  try {
+    return await executeAuthorizedRequest<T>(path, accessToken, init);
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 401 || !options?.refreshToken) {
+      throw error;
+    }
+
+    const rotatedTokens = await refreshWithLock(options.refreshToken);
+    options.onSessionTokensUpdated?.(rotatedTokens);
+    return executeAuthorizedRequest<T>(path, rotatedTokens.accessToken, init);
+  }
 }
 
 export async function register(payload: {
@@ -138,40 +220,46 @@ export async function login(payload: {
 }
 
 export async function logout(accessToken: string): Promise<void> {
-  await authorizedRequest<void>("/auth/logout", accessToken, {
+  await executeAuthorizedRequest<void>("/auth/logout", accessToken, {
     method: "POST"
   });
 }
 
-export async function getCurrentUser(accessToken: string): Promise<AuthUser> {
-  return authorizedRequest<AuthUser>("/auth/me", accessToken);
+export async function getCurrentUser(accessToken: string, options?: AuthRequestOptions): Promise<AuthUser> {
+  return authorizedRequest<AuthUser>("/auth/me", accessToken, undefined, options);
 }
 
-export async function getLayerCatalog(accessToken: string): Promise<LayerCatalogItem[]> {
-  const response = await authorizedRequest<{ layers: LayerCatalogItem[] }>("/layers", accessToken);
+export async function getLayerCatalog(accessToken: string, options?: AuthRequestOptions): Promise<LayerCatalogItem[]> {
+  const response = await authorizedRequest<{ layers: LayerCatalogItem[] }>("/layers", accessToken, undefined, options);
   return response.layers;
 }
 
 export async function getPropertyByCoordinates(
   accessToken: string,
   longitude: number,
-  latitude: number
+  latitude: number,
+  options?: AuthRequestOptions
 ): Promise<PropertyLookupResult> {
   return authorizedRequest<PropertyLookupResult>(
     `/properties/by-coordinates?longitude=${longitude}&latitude=${latitude}`,
-    accessToken
+    accessToken,
+    undefined,
+    options
   );
 }
 
 export async function searchProperties(
   accessToken: string,
   query: string,
-  limit = 10
+  limit = 10,
+  options?: AuthRequestOptions
 ): Promise<PropertySearchResult[]> {
   const encodedQuery = encodeURIComponent(query);
   const response = await authorizedRequest<{ results: PropertySearchResult[] }>(
     `/properties/search?q=${encodedQuery}&limit=${limit}`,
-    accessToken
+    accessToken,
+    undefined,
+    options
   );
   return response.results;
 }
