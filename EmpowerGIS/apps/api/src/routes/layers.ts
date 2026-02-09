@@ -56,6 +56,12 @@ const BASE_LAYER_CATALOG: LayerCatalogEntry[] = [
     name: "Opportunity Zone",
     geometryType: "fill",
     description: "Federal opportunity zone boundaries."
+  },
+  {
+    key: "parcels",
+    name: "Parcels",
+    geometryType: "line",
+    description: "Parcel boundaries for lot-level analysis and site feasibility."
   }
 ];
 

@@ -23,58 +23,272 @@ interface MapShellProps {
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string | undefined;
 const PLACEHOLDER_MAPBOX_TOKEN = "replace-with-mapbox-public-token";
 
-const LAYER_STYLE: Record<string, { type: "fill" | "line"; paint: Record<string, unknown> }> = {
-  floodplain: {
-    type: "fill",
-    paint: {
-      "fill-color": "#3b82f6",
-      "fill-opacity": 0.35
-    }
-  },
-  contours: {
-    type: "line",
-    paint: {
-      "line-color": "#8a5a2b",
-      "line-width": 1.25,
-      "line-opacity": 0.9
-    }
-  },
-  zoning: {
-    type: "fill",
-    paint: {
-      "fill-color": "#7c3aed",
-      "fill-opacity": 0.24
-    }
-  },
-  "water-infrastructure": {
-    type: "line",
-    paint: {
-      "line-color": "#0d78c8",
-      "line-width": 2
-    }
-  },
-  "sewer-infrastructure": {
-    type: "line",
-    paint: {
-      "line-color": "#8b5e34",
-      "line-width": 2
-    }
-  },
-  "cities-etj": {
-    type: "fill",
-    paint: {
-      "fill-color": "#0e9f6e",
-      "fill-opacity": 0.16
-    }
-  },
-  "opportunity-zones": {
-    type: "fill",
-    paint: {
-      "fill-color": "#f59e0b",
-      "fill-opacity": 0.2
-    }
+function buildLayerDefinitions(layerKey: string, sourceId: string): AnyLayer[] {
+  switch (layerKey) {
+    case "floodplain":
+      return [
+        {
+          id: "layer-floodplain",
+          type: "fill",
+          source: sourceId,
+          "source-layer": "floodplain",
+          paint: {
+            "fill-color": "#2563eb",
+            "fill-opacity": 0.34
+          }
+        } as AnyLayer
+      ];
+    case "contours":
+      return [
+        {
+          id: "layer-contours",
+          type: "line",
+          source: sourceId,
+          "source-layer": "contours",
+          paint: {
+            "line-color": "#8a5a2b",
+            "line-width": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              10,
+              0.9,
+              14,
+              1.3,
+              17,
+              2
+            ],
+            "line-opacity": 0.92
+          }
+        } as AnyLayer,
+        {
+          id: "layer-contours-label",
+          type: "symbol",
+          source: sourceId,
+          "source-layer": "contours",
+          minzoom: 13,
+          layout: {
+            "symbol-placement": "line",
+            "symbol-spacing": 260,
+            "text-field": [
+              "concat",
+              ["to-string", ["round", ["coalesce", ["get", "elevation_ft"], 0]]],
+              " ft"
+            ],
+            "text-size": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              13,
+              9,
+              16,
+              12
+            ]
+          },
+          paint: {
+            "text-color": "#f8fafc",
+            "text-halo-color": "#111827",
+            "text-halo-width": 1.2,
+            "text-opacity": 0.95
+          }
+        } as AnyLayer
+      ];
+    case "zoning":
+      return [
+        {
+          id: "layer-zoning",
+          type: "fill",
+          source: sourceId,
+          "source-layer": "zoning",
+          paint: {
+            "fill-color": "#be185d",
+            "fill-opacity": 0.24
+          }
+        } as AnyLayer,
+        {
+          id: "layer-zoning-outline",
+          type: "line",
+          source: sourceId,
+          "source-layer": "zoning",
+          paint: {
+            "line-color": "#831843",
+            "line-width": 1.1,
+            "line-opacity": 0.95
+          }
+        } as AnyLayer
+      ];
+    case "water-infrastructure":
+      return [
+        {
+          id: "layer-water-infrastructure",
+          type: "line",
+          source: sourceId,
+          "source-layer": "water-infrastructure",
+          filter: ["==", ["geometry-type"], "LineString"],
+          paint: {
+            "line-color": "#0b84d8",
+            "line-width": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              10,
+              1.2,
+              15,
+              2.5,
+              18,
+              4
+            ],
+            "line-opacity": 0.96
+          }
+        } as AnyLayer,
+        {
+          id: "layer-water-infrastructure-points",
+          type: "circle",
+          source: sourceId,
+          "source-layer": "water-infrastructure",
+          filter: ["==", ["geometry-type"], "Point"],
+          paint: {
+            "circle-color": "#0b84d8",
+            "circle-radius": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              11,
+              1.5,
+              16,
+              4
+            ],
+            "circle-opacity": 0.9
+          }
+        } as AnyLayer
+      ];
+    case "sewer-infrastructure":
+      return [
+        {
+          id: "layer-sewer-infrastructure",
+          type: "line",
+          source: sourceId,
+          "source-layer": "sewer-infrastructure",
+          filter: ["==", ["geometry-type"], "LineString"],
+          paint: {
+            "line-color": "#a16207",
+            "line-width": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              10,
+              1.2,
+              15,
+              2.5,
+              18,
+              4
+            ],
+            "line-opacity": 0.96
+          }
+        } as AnyLayer,
+        {
+          id: "layer-sewer-infrastructure-points",
+          type: "circle",
+          source: sourceId,
+          "source-layer": "sewer-infrastructure",
+          filter: ["==", ["geometry-type"], "Point"],
+          paint: {
+            "circle-color": "#b45309",
+            "circle-radius": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              11,
+              1.5,
+              16,
+              4
+            ],
+            "circle-opacity": 0.9
+          }
+        } as AnyLayer
+      ];
+    case "cities-etj":
+      return [
+        {
+          id: "layer-cities-etj",
+          type: "fill",
+          source: sourceId,
+          "source-layer": "cities-etj",
+          paint: {
+            "fill-color": [
+              "match",
+              ["downcase", ["coalesce", ["get", "boundary_type"], ""]],
+              "city",
+              "#16a34a",
+              "etj",
+              "#f59e0b",
+              "#6b7280"
+            ],
+            "fill-opacity": 0.2
+          }
+        } as AnyLayer,
+        {
+          id: "layer-cities-etj-outline",
+          type: "line",
+          source: sourceId,
+          "source-layer": "cities-etj",
+          paint: {
+            "line-color": [
+              "match",
+              ["downcase", ["coalesce", ["get", "boundary_type"], ""]],
+              "city",
+              "#15803d",
+              "etj",
+              "#d97706",
+              "#4b5563"
+            ],
+            "line-width": 1.4,
+            "line-opacity": 0.95
+          }
+        } as AnyLayer
+      ];
+    case "opportunity-zones":
+      return [
+        {
+          id: "layer-opportunity-zones",
+          type: "fill",
+          source: sourceId,
+          "source-layer": "opportunity-zones",
+          paint: {
+            "fill-color": "#f59e0b",
+            "fill-opacity": 0.22
+          }
+        } as AnyLayer
+      ];
+    case "parcels":
+      return [
+        {
+          id: "layer-parcels",
+          type: "line",
+          source: sourceId,
+          "source-layer": "parcels",
+          minzoom: 13,
+          paint: {
+            "line-color": "#f3f4f6",
+            "line-width": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              13,
+              0.4,
+              16,
+              1,
+              19,
+              1.8
+            ],
+            "line-opacity": 0.92
+          }
+        } as AnyLayer
+      ];
+    default:
+      return [];
   }
-};
+}
 
 function formatCurrency(value?: number | null): string {
   if (value === null || value === undefined || Number.isNaN(value)) {
@@ -135,7 +349,7 @@ export default function MapShell({
         setLayersError(null);
         setLayerVisibility(
           catalog.reduce<Record<string, boolean>>((acc: Record<string, boolean>, layer: LayerCatalogItem) => {
-            acc[layer.key] = layer.key === "floodplain";
+            acc[layer.key] = layer.key === "floodplain" || layer.key === "parcels";
             return acc;
           }, {})
         );
@@ -183,7 +397,8 @@ export default function MapShell({
       for (const layer of layers) {
         if (layer.status !== "ready") continue;
         const sourceId = `source-${layer.key}`;
-        const layerId = `layer-${layer.key}`;
+        const layerDefinitions = buildLayerDefinitions(layer.key, sourceId);
+        if (layerDefinitions.length === 0) continue;
 
         if (!map.getSource(sourceId)) {
           map.addSource(sourceId, {
@@ -194,20 +409,16 @@ export default function MapShell({
           });
         }
 
-        if (!map.getLayer(layerId)) {
-          const styleConfig = LAYER_STYLE[layer.key];
-          if (!styleConfig) continue;
-          const mapLayer: AnyLayer = {
-            id: layerId,
-            type: styleConfig.type,
-            source: sourceId,
-            "source-layer": layer.key,
-            paint: styleConfig.paint
-          } as AnyLayer;
-          map.addLayer(mapLayer);
+        for (const layerDefinition of layerDefinitions) {
+          if (!map.getLayer(layerDefinition.id)) {
+            map.addLayer(layerDefinition);
+          }
+          map.setLayoutProperty(
+            layerDefinition.id,
+            "visibility",
+            layerVisibility[layer.key] ? "visible" : "none"
+          );
         }
-
-        map.setLayoutProperty(layerId, "visibility", layerVisibility[layer.key] ? "visible" : "none");
       }
     };
 
