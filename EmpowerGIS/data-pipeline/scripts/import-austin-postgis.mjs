@@ -141,11 +141,15 @@ const IMPORT_PLAN = [
   },
   {
     key: "zoning",
-    name: "Austin Zoning",
+    name: "Austin Metro Zoning",
     targetTable: "zoning_districts",
     stagingTable: "staging_zoning",
     sources: [
-      `${SOURCE_ROOT}/zoning/austin_zoning_small_scale.geojson`
+      `${SOURCE_ROOT}/zoning/austin_zoning_small_scale.geojson`,
+      `${SOURCE_ROOT}/zoning/Zoning_Districts.geojson`,
+      `${SOURCE_ROOT}/zoning/Current_Zoning.geojson`,
+      `${SOURCE_ROOT}/zoning/Zoning_Overlay.geojson`,
+      `${SOURCE_ROOT}/zoning/Zoning_Overlays.geojson`
     ],
     transformSql: (versionId) => `
       INSERT INTO zoning_districts (
@@ -156,9 +160,46 @@ const IMPORT_PLAN = [
         geom
       )
       SELECT
-        COALESCE(NULLIF(zoning_ztype::text, ''), NULLIF(zoning_base::text, ''), 'UNKNOWN') AS zoning_code,
-        COALESCE(NULLIF(zoning_ztype::text, ''), NULLIF(zoning_base::text, ''), 'Unknown Zoning') AS zoning_label,
-        'City of Austin' AS jurisdiction,
+        UPPER(
+          TRIM(
+            COALESCE(
+              NULLIF(zoning_ztype::text, ''),
+              NULLIF(zoning_base::text, ''),
+              NULLIF(zoning_category::text, ''),
+              NULLIF(zoining_ty::text, ''),
+              NULLIF(overlay::text, ''),
+              NULLIF(overlay_ty::text, ''),
+              'UNKNOWN'
+            )
+          )
+        ) AS zoning_code,
+        COALESCE(
+          NULLIF(zoning_description::text, ''),
+          NULLIF(zoning_des::text, ''),
+          NULLIF(land_use::text, ''),
+          CASE
+            WHEN NULLIF(overlay_ty::text, '') IS NOT NULL THEN overlay_ty::text
+            WHEN NULLIF(overlay::text, '') IS NOT NULL THEN CONCAT('Overlay ', overlay::text)
+            ELSE NULL
+          END,
+          NULLIF(zoning_category::text, ''),
+          NULLIF(zoining_ty::text, ''),
+          NULLIF(zoning_ztype::text, ''),
+          NULLIF(zoning_base::text, ''),
+          'Unknown Zoning'
+        ) AS zoning_label,
+        CASE
+          WHEN COALESCE(NULLIF(zoning_ztype::text, ''), NULLIF(zoning_base::text, '')) IS NOT NULL
+            THEN 'City of Austin'
+          WHEN COALESCE(
+            NULLIF(zoning_category::text, ''),
+            NULLIF(zoining_ty::text, ''),
+            NULLIF(overlay::text, ''),
+            NULLIF(overlay_ty::text, '')
+          ) IS NOT NULL
+            THEN 'City of Pflugerville'
+          ELSE 'Austin Metro'
+        END AS jurisdiction,
         ${versionId},
         ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_Force2D(geom)), 3))::geometry(MULTIPOLYGON, 4326)
       FROM staging_zoning
@@ -199,9 +240,19 @@ const IMPORT_PLAN = [
     stagingTable: "staging_sewer",
     sources: [
       `${SOURCE_ROOT}/sewer/Forcemain.geojson`,
-      `${SOURCE_ROOT}/sewer/Wastewater_Manhole.geojson`
+      `${SOURCE_ROOT}/sewer/Wastewater_Manhole.geojson`,
+      `${SOURCE_ROOT}/sewer/WW_Collection_System_7024763302870928540.geojson`,
+      `${SOURCE_ROOT}/sewer/Wastewater_Collection_System_8716600646372745612.geojson`,
+      `${SOURCE_ROOT}/sewer/Wastewater_Collection_System_2007308926558367924.geojson`
     ],
     transformSql: (versionId) => `
+      WITH prepared AS (
+        SELECT
+          to_jsonb(staging_sewer) AS props,
+          ST_MakeValid(ST_Force2D(geom))::geometry(GEOMETRY, 4326) AS geom
+        FROM staging_sewer
+        WHERE geom IS NOT NULL
+      )
       INSERT INTO utility_infrastructure (
         utility_type,
         utility_subtype,
@@ -211,12 +262,123 @@ const IMPORT_PLAN = [
       )
       SELECT
         'sewer' AS utility_type,
-        COALESCE(NULLIF(type::text, ''), NULLIF(material::text, ''), 'sewer_asset') AS utility_subtype,
-        COALESCE(NULLIF(ownership::text, ''), 'unknown') AS operator_name,
+        COALESCE(
+          NULLIF(props->>'type', ''),
+          NULLIF(props->>'type_d', ''),
+          NULLIF(props->>'use_d', ''),
+          NULLIF(props->>'material', ''),
+          NULLIF(props->>'mat_d', ''),
+          NULLIF(props->>'mh_dia', ''),
+          'sewer_asset'
+        ) AS utility_subtype,
+        COALESCE(
+          NULLIF(props->>'ownership', ''),
+          NULLIF(props->>'owner', ''),
+          NULLIF(props->>'owner_id', ''),
+          NULLIF(props->>'ownerid', ''),
+          'unknown'
+        ) AS operator_name,
         ${versionId},
-        ST_MakeValid(ST_Force2D(geom))::geometry(GEOMETRY, 4326)
-      FROM staging_sewer
-      WHERE geom IS NOT NULL;
+        geom
+      FROM prepared;
+    `
+  },
+  {
+    key: "address-points",
+    name: "Address Points",
+    targetTable: "address_points",
+    stagingTable: "staging_address_points",
+    sources: [
+      `${SOURCE_ROOT}/address-points/stratmap25-addresspoints_48.gdb`
+    ],
+    transformSql: (versionId) => `
+      WITH staged AS (
+        SELECT
+          to_jsonb(staging_address_points) AS props,
+          ST_SetSRID(ST_PointOnSurface(ST_MakeValid(ST_Force2D(geom))), 4326)::geometry(POINT, 4326) AS geom
+        FROM staging_address_points
+        WHERE geom IS NOT NULL
+      ),
+      extracted AS (
+        SELECT
+          COALESCE(
+            NULLIF(props->>'full_addr', ''),
+            NULLIF(props->>'full_address', ''),
+            NULLIF(props->>'label_name_unit', ''),
+            NULLIF(props->>'label_name', ''),
+            NULLIF(TRIM(CONCAT_WS(' ',
+              NULLIF(props->>'addr_num', ''),
+              NULLIF(props->>'addr_number', ''),
+              NULLIF(props->>'add_number', ''),
+              NULLIF(props->>'addnum_suf', ''),
+              NULLIF(props->>'st_predir', ''),
+              NULLIF(props->>'st_pretyp', ''),
+              NULLIF(props->>'st_name', ''),
+              NULLIF(props->>'st_postyp', ''),
+              NULLIF(props->>'st_posdir', ''),
+              NULLIF(props->>'st_premod', ''),
+              NULLIF(props->>'st_posmod', ''),
+              NULLIF(props->>'st_type', ''),
+              NULLIF(props->>'rd_fullname', ''),
+              NULLIF(props->>'unit', '')
+            )), '')
+          ) AS address_label,
+          COALESCE(
+            NULLIF(props->>'post_comm', ''),
+            NULLIF(props->>'postal_com', ''),
+            NULLIF(props->>'postal_comm', ''),
+            NULLIF(props->>'city', ''),
+            NULLIF(props->>'msag_com', ''),
+            NULLIF(props->>'municipal', '')
+          ) AS city_name,
+          COALESCE(NULLIF(props->>'county', ''), 'Unknown') AS county_name,
+          COALESCE(NULLIF(props->>'post_code', ''), NULLIF(props->>'zip', '')) AS postal_code,
+          COALESCE(NULLIF(props->>'source', ''), NULLIF(props->>'updating_agency', ''), 'unknown') AS source_name,
+          geom
+        FROM staged
+      ),
+      prepared AS (
+        SELECT
+          address_label,
+          LOWER(REGEXP_REPLACE(address_label, '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_address,
+          city_name,
+          county_name,
+          postal_code,
+          source_name,
+          geom
+        FROM extracted
+        WHERE COALESCE(TRIM(address_label), '') <> ''
+      ),
+      deduped AS (
+        SELECT
+          *,
+          ROW_NUMBER() OVER (
+            PARTITION BY normalized_address, county_name, ST_SnapToGrid(geom, 0.000001)
+            ORDER BY source_name ASC
+          ) AS rn
+        FROM prepared
+      )
+      INSERT INTO address_points (
+        address_label,
+        normalized_address,
+        city_name,
+        county_name,
+        postal_code,
+        source_name,
+        layer_version_id,
+        geom
+      )
+      SELECT
+        address_label,
+        normalized_address,
+        city_name,
+        county_name,
+        postal_code,
+        source_name,
+        ${versionId},
+        geom
+      FROM deduped
+      WHERE rn = 1;
     `
   },
   {
@@ -228,9 +390,47 @@ const IMPORT_PLAN = [
       `${SOURCE_ROOT}/cities/williamson_cities.geojson`,
       `${SOURCE_ROOT}/cities/williamson_etj.geojson`,
       `${SOURCE_ROOT}/cities/hays_city_boundaries.geojson`,
-      `${SOURCE_ROOT}/cities/hays_etj_boundaries.geojson`
+      `${SOURCE_ROOT}/cities/hays_etj_boundaries.geojson`,
+      `${SOURCE_ROOT}/cities/Municipal_Jurisdictions_Boundaries.geojson`
     ],
     transformSql: (versionId) => `
+      WITH prepared AS (
+        SELECT
+          CASE
+            WHEN NULLIF(etj_name::text, '') IS NOT NULL THEN 'etj'
+            WHEN NULLIF(etj_type::text, '') IS NOT NULL THEN 'etj'
+            WHEN UPPER(COALESCE(NULLIF(city_name::text, ''), NULLIF(muni_nm::text, ''))) LIKE '% ETJ%' THEN 'etj'
+            WHEN UPPER(COALESCE(NULLIF(name::text, ''), NULLIF(first_label::text, ''))) LIKE '%ETJ%' THEN 'etj'
+            ELSE 'city'
+          END AS boundary_type_raw,
+          UPPER(
+            TRIM(
+              COALESCE(
+                NULLIF(REPLACE(etj_name::text, ' ETJ', ''), ''),
+                NULLIF(city_name::text, ''),
+                NULLIF(muni_nm::text, ''),
+                NULLIF(REPLACE(first_label::text, ' ETJ', ''), ''),
+                NULLIF(REPLACE(REGEXP_REPLACE(name::text, '^(City|Village) of ', '', 'i'), ' ETJ', ''), ''),
+                'Unknown Jurisdiction'
+              )
+            )
+          ) AS jurisdiction_name,
+          ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_Force2D(geom)), 3))::geometry(MULTIPOLYGON, 4326) AS geom
+        FROM staging_cities_etj
+        WHERE geom IS NOT NULL
+      ),
+      ranked AS (
+        SELECT
+          *,
+          COUNT(*) OVER (PARTITION BY jurisdiction_name) AS duplicate_name_count,
+          SUM(CASE WHEN boundary_type_raw = 'etj' THEN 1 ELSE 0 END)
+            OVER (PARTITION BY jurisdiction_name) AS explicit_etj_count,
+          ROW_NUMBER() OVER (
+            PARTITION BY jurisdiction_name
+            ORDER BY ST_Area(geom::geography) DESC
+          ) AS area_rank
+        FROM prepared
+      )
       INSERT INTO municipal_boundaries (
         boundary_type,
         jurisdiction_name,
@@ -239,14 +439,14 @@ const IMPORT_PLAN = [
       )
       SELECT
         CASE
-          WHEN etj_type IS NOT NULL OR etj_name IS NOT NULL THEN 'etj'
+          WHEN boundary_type_raw = 'etj' THEN 'etj'
+          WHEN duplicate_name_count > 1 AND explicit_etj_count = 0 AND area_rank = 1 THEN 'etj'
           ELSE 'city'
         END AS boundary_type,
-        COALESCE(NULLIF(city_name::text, ''), NULLIF(muni_nm::text, ''), NULLIF(etj_name::text, ''), 'Unknown Jurisdiction') AS jurisdiction_name,
+        jurisdiction_name,
         ${versionId},
-        ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_Force2D(geom)), 3))::geometry(MULTIPOLYGON, 4326)
-      FROM staging_cities_etj
-      WHERE geom IS NOT NULL;
+        geom
+      FROM ranked;
     `
   },
   {
@@ -303,7 +503,11 @@ const IMPORT_PLAN = [
           )) AS situs_address,
           NULLIF(owner_name::text, '') AS owner_name,
           NULLIF(legal_desc::text, '') AS legal_description,
-          NULLIF(gis_area::text, '')::numeric(12,4) AS acreage,
+          CASE
+            WHEN UPPER(COALESCE(county::text, '')) = 'TRAVIS'
+              THEN (NULLIF(gis_area::text, '')::numeric(12,4) / 10.7639104167)
+            ELSE NULLIF(gis_area::text, '')::numeric(12,4)
+          END AS acreage,
           NULLIF(land_value::text, '')::numeric(14,2) AS land_value,
           NULLIF(imp_value::text, '')::numeric(14,2) AS improvement_value,
           NULLIF(mkt_value::text, '')::numeric(14,2) AS market_value,

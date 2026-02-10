@@ -308,6 +308,20 @@ export async function getPropertyByCoordinates(
   );
 }
 
+export async function getPropertyByParcelKey(
+  accessToken: string,
+  parcelKey: string,
+  options?: AuthRequestOptions
+): Promise<PropertyLookupResult> {
+  const encodedParcelKey = encodeURIComponent(parcelKey);
+  return authorizedRequest<PropertyLookupResult>(
+    `/properties/by-parcel-key/${encodedParcelKey}`,
+    accessToken,
+    undefined,
+    options
+  );
+}
+
 export async function searchProperties(
   accessToken: string,
   query: string,

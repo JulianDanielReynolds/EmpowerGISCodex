@@ -167,6 +167,10 @@ export async function getLayerCatalog(accessToken, options) {
 export async function getPropertyByCoordinates(accessToken, longitude, latitude, options) {
     return authorizedRequest(`/properties/by-coordinates?longitude=${longitude}&latitude=${latitude}`, accessToken, undefined, options);
 }
+export async function getPropertyByParcelKey(accessToken, parcelKey, options) {
+    const encodedParcelKey = encodeURIComponent(parcelKey);
+    return authorizedRequest(`/properties/by-parcel-key/${encodedParcelKey}`, accessToken, undefined, options);
+}
 export async function searchProperties(accessToken, query, limit = 10, options) {
     const encodedQuery = encodeURIComponent(query);
     const response = await authorizedRequest(`/properties/search?q=${encodedQuery}&limit=${limit}`, accessToken, undefined, options);

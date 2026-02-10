@@ -51,13 +51,15 @@ const LIVE_LAYERS: Record<string, LiveLayerConfig> = {
       "id::text AS feature_id",
       "COALESCE(zoning_code, '') AS zoning_code",
       "COALESCE(zoning_label, '') AS zoning_label",
-      "COALESCE(jurisdiction, '') AS jurisdiction"
+      "COALESCE(jurisdiction, '') AS jurisdiction",
+      "('#' || SUBSTRING(MD5(UPPER(COALESCE(zoning_code, 'UNKNOWN'))) FOR 6)) AS zoning_color"
     ],
     vectorFields: {
       feature_id: "String",
       zoning_code: "String",
       zoning_label: "String",
-      jurisdiction: "String"
+      jurisdiction: "String",
+      zoning_color: "String"
     }
   },
   "water-infrastructure": {
@@ -134,7 +136,13 @@ const LIVE_LAYERS: Record<string, LiveLayerConfig> = {
       "COALESCE(situs_address, '') AS situs_address",
       "COALESCE(owner_name, '') AS owner_name",
       "COALESCE(market_value, 0)::float8 AS market_value",
-      "COALESCE(acreage, 0)::float8 AS acreage",
+      `
+      CASE
+        WHEN UPPER(COALESCE(county_name, '')) = 'TRAVIS' AND acreage IS NOT NULL
+          THEN (acreage / 10.763910416709722)::float8
+        ELSE COALESCE(acreage, 0)::float8
+      END AS acreage
+      `,
       "COALESCE(zoning_code, '') AS zoning_code"
     ],
     vectorFields: {

@@ -121,12 +121,13 @@ layersRouter.get(
     const layers = BASE_LAYER_CATALOG.map((layer) => {
       const latest = latestByLayer.get(layer.key);
       const status = latest ? "ready" : "missing";
+      const versionParam = latest?.importedAt ? `?v=${encodeURIComponent(latest.importedAt)}` : "";
 
       return {
         ...layer,
         status,
         latestVersion: latest ?? null,
-        tileTemplate: `${tileBaseUrl}/${layer.key}/{z}/{x}/{y}.pbf`
+        tileTemplate: `${tileBaseUrl}/${layer.key}/{z}/{x}/{y}.pbf${versionParam}`
       };
     });
 

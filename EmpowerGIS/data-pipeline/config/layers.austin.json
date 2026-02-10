@@ -19,7 +19,10 @@
     ],
     "zoning": [
       "zoning/austin_zoning_small_scale.geojson",
-      "zoning/Zoning_Districts.geojson"
+      "zoning/Zoning_Districts.geojson",
+      "zoning/Current_Zoning.geojson",
+      "zoning/Zoning_Overlay.geojson",
+      "zoning/Zoning_Overlays.geojson"
     ],
     "water-infrastructure": [
       "water/Water_Transmission_Main.geojson",
@@ -27,13 +30,20 @@
     ],
     "sewer-infrastructure": [
       "sewer/Forcemain.geojson",
-      "sewer/Wastewater_Manhole.geojson"
+      "sewer/Wastewater_Manhole.geojson",
+      "sewer/WW_Collection_System_7024763302870928540.geojson",
+      "sewer/Wastewater_Collection_System_8716600646372745612.geojson",
+      "sewer/Wastewater_Collection_System_2007308926558367924.geojson"
+    ],
+    "address-points": [
+      "address-points/stratmap25-addresspoints_48.gdb"
     ],
     "cities-etj": [
       "cities/williamson_cities.geojson",
       "cities/williamson_etj.geojson",
       "cities/hays_city_boundaries.geojson",
-      "cities/hays_etj_boundaries.geojson"
+      "cities/hays_etj_boundaries.geojson",
+      "cities/Municipal_Jurisdictions_Boundaries.geojson"
     ],
     "opportunity-zones": [
       "opportunity-zones/Opportunity_Zones_2244808886865986276.geojson"
