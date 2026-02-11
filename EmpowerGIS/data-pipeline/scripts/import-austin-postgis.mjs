@@ -88,15 +88,179 @@ function resolveSourceRoot() {
 
 const SOURCE_ROOT = resolveSourceRoot();
 
+const VECTOR_SOURCE_PATTERN = /\.(geojson|json|gpkg|shp)$/i;
+const FILE_GEODATABASE_PATTERN = /\.gdb$/i;
+
+function resolveExistingSources(relativePaths) {
+  return relativePaths
+    .map((relativePath) => path.join(SOURCE_ROOT, relativePath))
+    .filter((sourcePath) => fs.existsSync(sourcePath));
+}
+
+function resolveDirectorySources(relativeDirectory, options = {}) {
+  const {
+    filePattern = VECTOR_SOURCE_PATTERN,
+    directoryPattern = FILE_GEODATABASE_PATTERN,
+    minFileSizeBytes = 1024
+  } = options;
+
+  const layerDir = path.join(SOURCE_ROOT, relativeDirectory);
+  if (!fs.existsSync(layerDir) || !fs.statSync(layerDir).isDirectory()) {
+    return [];
+  }
+
+  const sources = [];
+  const entries = fs.readdirSync(layerDir, { withFileTypes: true });
+  for (const entry of entries) {
+    const entryPath = path.join(layerDir, entry.name);
+    if (entry.isDirectory() && directoryPattern?.test(entry.name)) {
+      sources.push(entryPath);
+      continue;
+    }
+    if (entry.isFile() && filePattern?.test(entry.name)) {
+      const fileSize = fs.statSync(entryPath).size;
+      if (fileSize >= minFileSizeBytes) {
+        sources.push(entryPath);
+      }
+    }
+  }
+
+  return sources.sort((a, b) => a.localeCompare(b));
+}
+
+function mergeUniqueSources(...sourceLists) {
+  return Array.from(new Set(sourceLists.flat())).sort((a, b) => a.localeCompare(b));
+}
+
+function resolveFloodplainSources() {
+  return mergeUniqueSources(
+    resolveExistingSources([
+      "flood-zones/fema_austin_metro_floodplain.geojson",
+      "fema-flood-zones/fema_austin_metro_floodplain.geojson"
+    ]),
+    resolveDirectorySources("flood-zones"),
+    resolveDirectorySources("fema-flood-zones")
+  );
+}
+
+function resolveZoningSources() {
+  return mergeUniqueSources(
+    resolveExistingSources([
+      "zoning/austin_zoning_small_scale.geojson",
+      "zoning/Zoning_(Small_Map_Scale)_20260129.geojson",
+      "zoning/Zoning_Districts.geojson",
+      "zoning/Current_Zoning.geojson",
+      "zoning/Zoning_Overlay.geojson",
+      "zoning/Zoning_Overlays.geojson"
+    ]),
+    resolveDirectorySources("zoning")
+  );
+}
+
+function resolveWaterInfrastructureSources() {
+  return resolveDirectorySources("water");
+}
+
+function resolveSewerInfrastructureSources() {
+  return resolveDirectorySources("sewer");
+}
+
+function resolveAddressPointSources() {
+  return mergeUniqueSources(
+    resolveExistingSources([
+      "address-points/county_web_address_public_-188770469752292398.geojson",
+      "address-points/Address_Points_7269351287431368060.geojson",
+      "address-points/stratmap25-addresspoints_48.gdb"
+    ]),
+    resolveDirectorySources("address-points")
+  );
+}
+
+function resolveCitiesEtjSources() {
+  return mergeUniqueSources(
+    resolveExistingSources([
+      "cities/williamson_cities.geojson",
+      "cities/williamson_etj.geojson",
+      "cities/hays_city_boundaries.geojson",
+      "cities/hays_etj_boundaries.geojson",
+      "cities/Hays_County_City_Boundaries.geojson",
+      "cities/Hays_County_ETJ.geojson",
+      "cities/Municipal_Jurisdictions_Boundaries.geojson",
+      "cities/cities_public_-4106374378684537429.geojson",
+      "cities/etj_public_8426309624876459445.geojson"
+    ]),
+    resolveDirectorySources("cities")
+  );
+}
+
+function resolveOpportunityZoneSources() {
+  return mergeUniqueSources(
+    resolveExistingSources([
+      "opportunity-zones/Opportunity_Zones_2244808886865986276.geojson"
+    ]),
+    resolveDirectorySources("opportunity-zones")
+  );
+}
+
+function resolveParcelSources() {
+  return mergeUniqueSources(
+    resolveExistingSources([
+      "parcels/travis_county_parcels.geojson",
+      "parcels/williamson_county_parcels.geojson",
+      "parcels/hays_county_parcels.geojson"
+    ])
+  );
+}
+
+function resolveOilGasLeaseSources() {
+  const candidateDirectories = [
+    "oil & gas leases",
+    "oil-gas-leases",
+    "oil-gas",
+    "oil_and_gas"
+  ];
+
+  const discovered = [];
+  for (const directoryName of candidateDirectories) {
+    const layerDir = path.join(SOURCE_ROOT, directoryName);
+    if (!fs.existsSync(layerDir) || !fs.statSync(layerDir).isDirectory()) {
+      continue;
+    }
+
+    const entries = fs.readdirSync(layerDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && /\.gdb$/i.test(entry.name)) {
+        discovered.push(path.join(layerDir, entry.name));
+        continue;
+      }
+      if (entry.isFile() && /\.(geojson|json|gpkg|shp)$/i.test(entry.name)) {
+        discovered.push(path.join(layerDir, entry.name));
+      }
+    }
+  }
+
+  return Array.from(new Set(discovered)).sort((a, b) => a.localeCompare(b));
+}
+
+function resolveLayerSources(layer) {
+  if (typeof layer.resolveSources === "function") {
+    return layer.resolveSources();
+  }
+  return layer.sources ?? [];
+}
+
+function deriveSourceDatasetName(sourcePath) {
+  const baseName = path.basename(sourcePath);
+  return baseName.replace(/\.(geojson|json|gpkg|shp|gdb)$/i, "");
+}
+
 const IMPORT_PLAN = [
   {
     key: "floodplain",
     name: "FEMA Floodplain",
     targetTable: "flood_zones",
     stagingTable: "staging_floodplain",
-    sources: [
-      `${SOURCE_ROOT}/flood-zones/fema_austin_metro_floodplain.geojson`
-    ],
+    resolveSources: () => resolveFloodplainSources(),
     transformSql: (versionId) => `
       INSERT INTO flood_zones (
         flood_zone_code,
@@ -144,14 +308,15 @@ const IMPORT_PLAN = [
     name: "Austin Metro Zoning",
     targetTable: "zoning_districts",
     stagingTable: "staging_zoning",
-    sources: [
-      `${SOURCE_ROOT}/zoning/austin_zoning_small_scale.geojson`,
-      `${SOURCE_ROOT}/zoning/Zoning_Districts.geojson`,
-      `${SOURCE_ROOT}/zoning/Current_Zoning.geojson`,
-      `${SOURCE_ROOT}/zoning/Zoning_Overlay.geojson`,
-      `${SOURCE_ROOT}/zoning/Zoning_Overlays.geojson`
-    ],
+    resolveSources: () => resolveZoningSources(),
     transformSql: (versionId) => `
+      WITH prepared AS (
+        SELECT
+          to_jsonb(staging_zoning) AS props,
+          ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_Force2D(geom)), 3))::geometry(MULTIPOLYGON, 4326) AS geom
+        FROM staging_zoning
+        WHERE geom IS NOT NULL
+      )
       INSERT INTO zoning_districts (
         zoning_code,
         zoning_label,
@@ -163,47 +328,46 @@ const IMPORT_PLAN = [
         UPPER(
           TRIM(
             COALESCE(
-              NULLIF(zoning_ztype::text, ''),
-              NULLIF(zoning_base::text, ''),
-              NULLIF(zoning_category::text, ''),
-              NULLIF(zoining_ty::text, ''),
-              NULLIF(overlay::text, ''),
-              NULLIF(overlay_ty::text, ''),
+              NULLIF(props->>'zoning_ztype', ''),
+              NULLIF(props->>'zoning_base', ''),
+              NULLIF(props->>'zoning_category', ''),
+              NULLIF(props->>'zoining_ty', ''),
+              NULLIF(props->>'overlay', ''),
+              NULLIF(props->>'overlay_ty', ''),
               'UNKNOWN'
             )
           )
         ) AS zoning_code,
         COALESCE(
-          NULLIF(zoning_description::text, ''),
-          NULLIF(zoning_des::text, ''),
-          NULLIF(land_use::text, ''),
+          NULLIF(props->>'zoning_description', ''),
+          NULLIF(props->>'zoning_des', ''),
+          NULLIF(props->>'land_use', ''),
           CASE
-            WHEN NULLIF(overlay_ty::text, '') IS NOT NULL THEN overlay_ty::text
-            WHEN NULLIF(overlay::text, '') IS NOT NULL THEN CONCAT('Overlay ', overlay::text)
+            WHEN NULLIF(props->>'overlay_ty', '') IS NOT NULL THEN props->>'overlay_ty'
+            WHEN NULLIF(props->>'overlay', '') IS NOT NULL THEN CONCAT('Overlay ', props->>'overlay')
             ELSE NULL
           END,
-          NULLIF(zoning_category::text, ''),
-          NULLIF(zoining_ty::text, ''),
-          NULLIF(zoning_ztype::text, ''),
-          NULLIF(zoning_base::text, ''),
+          NULLIF(props->>'zoning_category', ''),
+          NULLIF(props->>'zoining_ty', ''),
+          NULLIF(props->>'zoning_ztype', ''),
+          NULLIF(props->>'zoning_base', ''),
           'Unknown Zoning'
         ) AS zoning_label,
         CASE
-          WHEN COALESCE(NULLIF(zoning_ztype::text, ''), NULLIF(zoning_base::text, '')) IS NOT NULL
+          WHEN COALESCE(NULLIF(props->>'zoning_ztype', ''), NULLIF(props->>'zoning_base', '')) IS NOT NULL
             THEN 'City of Austin'
           WHEN COALESCE(
-            NULLIF(zoning_category::text, ''),
-            NULLIF(zoining_ty::text, ''),
-            NULLIF(overlay::text, ''),
-            NULLIF(overlay_ty::text, '')
+            NULLIF(props->>'zoning_category', ''),
+            NULLIF(props->>'zoining_ty', ''),
+            NULLIF(props->>'overlay', ''),
+            NULLIF(props->>'overlay_ty', '')
           ) IS NOT NULL
             THEN 'City of Pflugerville'
           ELSE 'Austin Metro'
         END AS jurisdiction,
         ${versionId},
-        ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_Force2D(geom)), 3))::geometry(MULTIPOLYGON, 4326)
-      FROM staging_zoning
-      WHERE geom IS NOT NULL;
+        geom
+      FROM prepared;
     `
   },
   {
@@ -211,10 +375,7 @@ const IMPORT_PLAN = [
     name: "Water Infrastructure",
     targetTable: "utility_infrastructure",
     stagingTable: "staging_water",
-    sources: [
-      `${SOURCE_ROOT}/water/Water_Transmission_Main.geojson`,
-      `${SOURCE_ROOT}/water/round_rock_water_service_lines.geojson`
-    ],
+    resolveSources: () => resolveWaterInfrastructureSources(),
     transformSql: (versionId) => `
       INSERT INTO utility_infrastructure (
         utility_type,
@@ -238,13 +399,7 @@ const IMPORT_PLAN = [
     name: "Sewer Infrastructure",
     targetTable: "utility_infrastructure",
     stagingTable: "staging_sewer",
-    sources: [
-      `${SOURCE_ROOT}/sewer/Forcemain.geojson`,
-      `${SOURCE_ROOT}/sewer/Wastewater_Manhole.geojson`,
-      `${SOURCE_ROOT}/sewer/WW_Collection_System_7024763302870928540.geojson`,
-      `${SOURCE_ROOT}/sewer/Wastewater_Collection_System_8716600646372745612.geojson`,
-      `${SOURCE_ROOT}/sewer/Wastewater_Collection_System_2007308926558367924.geojson`
-    ],
+    resolveSources: () => resolveSewerInfrastructureSources(),
     transformSql: (versionId) => `
       WITH prepared AS (
         SELECT
@@ -288,9 +443,7 @@ const IMPORT_PLAN = [
     name: "Address Points",
     targetTable: "address_points",
     stagingTable: "staging_address_points",
-    sources: [
-      `${SOURCE_ROOT}/address-points/stratmap25-addresspoints_48.gdb`
-    ],
+    resolveSources: () => resolveAddressPointSources(),
     transformSql: (versionId) => `
       WITH staged AS (
         SELECT
@@ -386,38 +539,38 @@ const IMPORT_PLAN = [
     name: "Cities and ETJ",
     targetTable: "municipal_boundaries",
     stagingTable: "staging_cities_etj",
-    sources: [
-      `${SOURCE_ROOT}/cities/williamson_cities.geojson`,
-      `${SOURCE_ROOT}/cities/williamson_etj.geojson`,
-      `${SOURCE_ROOT}/cities/hays_city_boundaries.geojson`,
-      `${SOURCE_ROOT}/cities/hays_etj_boundaries.geojson`,
-      `${SOURCE_ROOT}/cities/Municipal_Jurisdictions_Boundaries.geojson`
-    ],
+    resolveSources: () => resolveCitiesEtjSources(),
     transformSql: (versionId) => `
-      WITH prepared AS (
+      WITH raw AS (
+        SELECT
+          to_jsonb(staging_cities_etj) AS props,
+          ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_Force2D(geom)), 3))::geometry(MULTIPOLYGON, 4326) AS geom
+        FROM staging_cities_etj
+        WHERE geom IS NOT NULL
+      ),
+      prepared AS (
         SELECT
           CASE
-            WHEN NULLIF(etj_name::text, '') IS NOT NULL THEN 'etj'
-            WHEN NULLIF(etj_type::text, '') IS NOT NULL THEN 'etj'
-            WHEN UPPER(COALESCE(NULLIF(city_name::text, ''), NULLIF(muni_nm::text, ''))) LIKE '% ETJ%' THEN 'etj'
-            WHEN UPPER(COALESCE(NULLIF(name::text, ''), NULLIF(first_label::text, ''))) LIKE '%ETJ%' THEN 'etj'
+            WHEN NULLIF(props->>'etj_name', '') IS NOT NULL THEN 'etj'
+            WHEN NULLIF(props->>'etj_type', '') IS NOT NULL THEN 'etj'
+            WHEN UPPER(COALESCE(NULLIF(props->>'city_name', ''), NULLIF(props->>'muni_nm', ''))) LIKE '% ETJ%' THEN 'etj'
+            WHEN UPPER(COALESCE(NULLIF(props->>'name', ''), NULLIF(props->>'first_label', ''))) LIKE '%ETJ%' THEN 'etj'
             ELSE 'city'
           END AS boundary_type_raw,
           UPPER(
             TRIM(
               COALESCE(
-                NULLIF(REPLACE(etj_name::text, ' ETJ', ''), ''),
-                NULLIF(city_name::text, ''),
-                NULLIF(muni_nm::text, ''),
-                NULLIF(REPLACE(first_label::text, ' ETJ', ''), ''),
-                NULLIF(REPLACE(REGEXP_REPLACE(name::text, '^(City|Village) of ', '', 'i'), ' ETJ', ''), ''),
+                NULLIF(REPLACE(props->>'etj_name', ' ETJ', ''), ''),
+                NULLIF(props->>'city_name', ''),
+                NULLIF(props->>'muni_nm', ''),
+                NULLIF(REPLACE(props->>'first_label', ' ETJ', ''), ''),
+                NULLIF(REPLACE(REGEXP_REPLACE(props->>'name', '^(City|Village) of ', '', 'i'), ' ETJ', ''), ''),
                 'Unknown Jurisdiction'
               )
             )
           ) AS jurisdiction_name,
-          ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_Force2D(geom)), 3))::geometry(MULTIPOLYGON, 4326) AS geom
-        FROM staging_cities_etj
-        WHERE geom IS NOT NULL
+          geom
+        FROM raw
       ),
       ranked AS (
         SELECT
@@ -454,21 +607,112 @@ const IMPORT_PLAN = [
     name: "Opportunity Zones",
     targetTable: "opportunity_zones",
     stagingTable: "staging_opportunity_zones",
-    sources: [
-      `${SOURCE_ROOT}/opportunity-zones/Opportunity_Zones_2244808886865986276.geojson`
-    ],
+    resolveSources: () => resolveOpportunityZoneSources(),
     transformSql: (versionId) => `
+      WITH prepared AS (
+        SELECT
+          COALESCE(
+            NULLIF(geoid10::text, ''),
+            NULLIF(objectid::text, ''),
+            md5(ST_AsBinary(geom)::text)
+          ) AS zone_id,
+          ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_Force2D(geom)), 3))::geometry(MULTIPOLYGON, 4326) AS geom
+        FROM staging_opportunity_zones
+        WHERE geom IS NOT NULL
+      ),
+      deduped AS (
+        SELECT
+          zone_id,
+          geom,
+          ROW_NUMBER() OVER (
+            PARTITION BY zone_id
+            ORDER BY ST_Area(geom::geography) DESC, md5(ST_AsEWKB(geom)::text)
+          ) AS rn
+        FROM prepared
+      )
       INSERT INTO opportunity_zones (
         zone_id,
         layer_version_id,
         geom
       )
       SELECT
-        COALESCE(NULLIF(geoid10::text, ''), NULLIF(objectid::text, ''), md5(ST_AsBinary(geom)::text)) AS zone_id,
+        zone_id,
         ${versionId},
-        ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_Force2D(geom)), 3))::geometry(MULTIPOLYGON, 4326)
-      FROM staging_opportunity_zones
-      WHERE geom IS NOT NULL;
+        geom
+      FROM deduped
+      WHERE rn = 1;
+    `
+  },
+  {
+    key: "oil-gas-leases",
+    name: "Oil & Gas Leases",
+    targetTable: "oil_gas_leases",
+    stagingTable: "staging_oil_gas_leases",
+    optionalSources: true,
+    resolveSources: () => resolveOilGasLeaseSources(),
+    transformSql: (versionId) => `
+      WITH prepared AS (
+        SELECT
+          to_jsonb(staging_oil_gas_leases) AS props,
+          ST_MakeValid(ST_Force2D(geom))::geometry(GEOMETRY, 4326) AS geom
+        FROM staging_oil_gas_leases
+        WHERE geom IS NOT NULL
+      )
+      INSERT INTO oil_gas_leases (
+        lease_id,
+        lease_name,
+        operator_name,
+        county_name,
+        state_code,
+        source_dataset,
+        layer_version_id,
+        geom
+      )
+      SELECT
+        COALESCE(
+          NULLIF(props->>'lease_id', ''),
+          NULLIF(props->>'leaseid', ''),
+          NULLIF(props->>'lease_no', ''),
+          NULLIF(props->>'lease_num', ''),
+          NULLIF(props->>'contract_no', ''),
+          NULLIF(props->>'tract_id', ''),
+          NULLIF(props->>'api', ''),
+          md5(ST_AsBinary(geom)::text)
+        ) AS lease_id,
+        COALESCE(
+          NULLIF(props->>'lease_name', ''),
+          NULLIF(props->>'lease', ''),
+          NULLIF(props->>'tract_name', ''),
+          NULLIF(props->>'name', ''),
+          'Unknown Lease'
+        ) AS lease_name,
+        COALESCE(
+          NULLIF(props->>'operator_name', ''),
+          NULLIF(props->>'operator', ''),
+          NULLIF(props->>'company', ''),
+          NULLIF(props->>'lessee', ''),
+          NULLIF(props->>'owner', ''),
+          'unknown'
+        ) AS operator_name,
+        COALESCE(
+          NULLIF(props->>'county_name', ''),
+          NULLIF(props->>'county', ''),
+          NULLIF(props->>'cnty_nm', '')
+        ) AS county_name,
+        UPPER(
+          COALESCE(
+            NULLIF(props->>'state_code', ''),
+            NULLIF(props->>'state', ''),
+            'TX'
+          )
+        ) AS state_code,
+        COALESCE(
+          NULLIF(props->>'source_dataset', ''),
+          'unknown'
+        ) AS source_dataset,
+        ${versionId},
+        geom
+      FROM prepared;
     `
   },
   {
@@ -476,11 +720,7 @@ const IMPORT_PLAN = [
     name: "Austin Metro Parcels",
     targetTable: "parcels",
     stagingTable: "staging_parcels",
-    sources: [
-      `${SOURCE_ROOT}/parcels/travis_county_parcels.geojson`,
-      `${SOURCE_ROOT}/parcels/williamson_county_parcels.geojson`,
-      `${SOURCE_ROOT}/parcels/hays_county_parcels.geojson`
-    ],
+    resolveSources: () => resolveParcelSources(),
     transformSql: (versionId) => `
       WITH normalized AS (
         SELECT
@@ -572,16 +812,24 @@ const IMPORT_PLAN = [
 
 function buildOgrArgs({ pgConnectionString, source, stagingTable, overwrite, bbox }) {
   const args = [
+    "--config",
+    "PG_USE_COPY",
+    "YES",
     "-f",
     "PostgreSQL",
     pgConnectionString,
     source,
+    "-gt",
+    "65536",
     "-nln",
     stagingTable,
     overwrite ? "-overwrite" : "-append",
     "-addfields",
-    "-skipfailures",
-    "-makevalid",
+    "-fieldTypeToString",
+    "All",
+    // Use large transactions for speed; skipfailures is intentionally disabled
+    // because GDAL does not allow combining it with -gt.
+    // Geometry is normalized in the SQL transform phase (ST_MakeValid), so skip pre-normalization for speed.
     "-t_srs",
     "EPSG:4326",
     "-lco",
@@ -619,6 +867,7 @@ async function main() {
   if (plan.length === 0) {
     throw new Error("No layers selected for import.");
   }
+  const explicitLayerSelection = new Set(args.layers ?? []);
 
   const client = await pool.connect();
   try {
@@ -631,23 +880,25 @@ async function main() {
     }
 
     for (const layer of plan) {
-      for (const source of layer.sources) {
+      const layerSources = resolveLayerSources(layer);
+      const selectedExplicitly = explicitLayerSelection.has(layer.key);
+      if (layerSources.length === 0) {
+        if (layer.optionalSources && !selectedExplicitly) {
+          console.warn(`[skip] ${layer.key}: no source files found under data/raw/oil & gas leases`);
+          continue;
+        }
+        throw new Error(`No source files resolved for layer: ${layer.key}`);
+      }
+
+      for (const source of layerSources) {
         ensureFileExists(source);
       }
 
       console.log(`\n=== Importing layer: ${layer.key} ===`);
-      await client.query("BEGIN");
-      try {
-        await client.query(`DELETE FROM ${layer.targetTable} WHERE layer_version_id IN (SELECT id FROM data_layer_versions WHERE layer_key = $1)`, [layer.key]);
-        await client.query("DELETE FROM data_layer_versions WHERE layer_key = $1", [layer.key]);
-        await client.query("COMMIT");
-      } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-      }
+      await client.query(`DROP TABLE IF EXISTS ${layer.stagingTable}`);
 
       let first = true;
-      for (const source of layer.sources) {
+      for (const source of layerSources) {
         const ogrArgs = buildOgrArgs({
           pgConnectionString,
           source,
@@ -656,38 +907,65 @@ async function main() {
           bbox: args.bbox
         });
         runCommand("ogr2ogr", ogrArgs);
+
+        if (layer.key === "oil-gas-leases") {
+          await client.query(`ALTER TABLE ${layer.stagingTable} ADD COLUMN IF NOT EXISTS source_dataset TEXT`);
+          await client.query(
+            `UPDATE ${layer.stagingTable}
+             SET source_dataset = $1
+             WHERE source_dataset IS NULL`,
+            [deriveSourceDatasetName(source)]
+          );
+        }
+
         first = false;
       }
 
-      const versionResult = await client.query(
-        `
-          INSERT INTO data_layer_versions (
-            layer_key,
-            layer_name,
-            source_name,
-            source_url,
-            source_snapshot_date,
-            metadata
-          )
-          VALUES ($1, $2, $3, $4, CURRENT_DATE, $5::jsonb)
-          RETURNING id
-        `,
-        [
-          layer.key,
-          layer.name,
-          "Austin public GIS import",
-          "https://www.empowergis.com",
-          JSON.stringify({
-            importedBy: "import-austin-postgis.mjs",
-            sourceCount: layer.sources.length,
-            bbox: args.bbox
-          })
-        ]
-      );
-      const versionId = Number(versionResult.rows[0].id);
-
+      let versionId = null;
       await client.query("BEGIN");
       try {
+        const previousVersionsResult = await client.query(
+          `
+            SELECT id::bigint AS id
+            FROM data_layer_versions
+            WHERE layer_key = $1
+          `,
+          [layer.key]
+        );
+        const previousVersionIds = previousVersionsResult.rows.map((row) => Number(row.id));
+
+        const versionResult = await client.query(
+          `
+            INSERT INTO data_layer_versions (
+              layer_key,
+              layer_name,
+              source_name,
+              source_url,
+              source_snapshot_date,
+              metadata
+            )
+            VALUES ($1, $2, $3, $4, CURRENT_DATE, $5::jsonb)
+            RETURNING id
+          `,
+          [
+            layer.key,
+            layer.name,
+            "Austin public GIS import",
+            "https://www.empowergis.com",
+            JSON.stringify({
+              importedBy: "import-austin-postgis.mjs",
+              sourceCount: layerSources.length,
+              bbox: args.bbox
+            })
+          ]
+        );
+        versionId = Number(versionResult.rows[0].id);
+
+        if (previousVersionIds.length > 0) {
+          await client.query(`DELETE FROM ${layer.targetTable} WHERE layer_version_id = ANY($1::bigint[])`, [previousVersionIds]);
+          await client.query("DELETE FROM data_layer_versions WHERE id = ANY($1::bigint[])", [previousVersionIds]);
+        }
+
         await client.query(layer.transformSql(versionId));
         await client.query(`DROP TABLE IF EXISTS ${layer.stagingTable}`);
         await client.query("COMMIT");

@@ -58,6 +58,12 @@ const BASE_LAYER_CATALOG: LayerCatalogEntry[] = [
     description: "Federal opportunity zone boundaries."
   },
   {
+    key: "oil-gas-leases",
+    name: "Oil & Gas Leases",
+    geometryType: "mixed",
+    description: "Active and historical oil and gas lease footprints."
+  },
+  {
     key: "parcels",
     name: "Parcels",
     geometryType: "line",

@@ -390,7 +390,7 @@ test("auth and GIS flows succeed end-to-end", async () => {
   });
   assert.equal(layersResponse.status, 200, `layers failed: ${layersResponse.text}`);
   assert.equal(Array.isArray(layersResponse.payload?.layers), true);
-  assert.equal(layersResponse.payload.layers.length, 8);
+  assert.equal(layersResponse.payload.layers.length, 9);
 
   const searchResponse = await apiRequest(
     `/api/properties/search?q=${encodeURIComponent(fixtureAddress)}&limit=5`,

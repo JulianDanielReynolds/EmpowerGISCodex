@@ -7,7 +7,8 @@
     "water-infrastructure",
     "sewer-infrastructure",
     "cities-etj",
-    "opportunity-zones"
+    "opportunity-zones",
+    "oil-gas-leases"
   ],
   "sources": {
     "floodplain": [
@@ -47,6 +48,10 @@
     ],
     "opportunity-zones": [
       "opportunity-zones/Opportunity_Zones_2244808886865986276.geojson"
+    ],
+    "oil-gas-leases": [
+      "oil & gas leases/Oil_and_Gas_Leases_Active_-3536351235963861124.geojson",
+      "oil & gas leases/Oil_and_Gas_Leases_In_Active_1985557218185177060.geojson"
     ]
   }
 }

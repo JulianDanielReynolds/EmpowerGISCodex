@@ -126,6 +126,31 @@ const LIVE_LAYERS: Record<string, LiveLayerConfig> = {
       zone_id: "String"
     }
   },
+  "oil-gas-leases": {
+    name: "Oil & Gas Leases",
+    tableName: "oil_gas_leases",
+    geometryColumn: "geom",
+    propertySql: [
+      "id::text AS feature_id",
+      "COALESCE(lease_id, '') AS lease_id",
+      "COALESCE(lease_name, '') AS lease_name",
+      "COALESCE(operator_name, '') AS operator_name",
+      "COALESCE(county_name, '') AS county_name",
+      "COALESCE(state_code, '') AS state_code",
+      "COALESCE(source_dataset, '') AS source_dataset",
+      "('#' || SUBSTRING(MD5(UPPER(COALESCE(source_dataset, 'UNKNOWN'))) FOR 6)) AS source_color"
+    ],
+    vectorFields: {
+      feature_id: "String",
+      lease_id: "String",
+      lease_name: "String",
+      operator_name: "String",
+      county_name: "String",
+      state_code: "String",
+      source_dataset: "String",
+      source_color: "String"
+    }
+  },
   parcels: {
     name: "Parcels",
     tableName: "parcels",
@@ -183,6 +208,15 @@ function getLayerConfig(layer: string): LiveLayerConfig | null {
   return LIVE_LAYERS[layer] ?? null;
 }
 
+function isUndefinedTableError(error: unknown): boolean {
+  return Boolean(
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    (error as { code?: string }).code === "42P01"
+  );
+}
+
 function resolvePublicTileBaseUrl(req: Request): string {
   const configured = env.TILE_BASE_URL?.trim();
   if (configured) {
@@ -237,8 +271,15 @@ async function layerHasRows(config: LiveLayerConfig): Promise<boolean> {
       LIMIT 1
     ) AS has_rows
   `;
-  const result = await pool.query(query);
-  return Boolean(result.rows[0]?.has_rows);
+  try {
+    const result = await pool.query(query);
+    return Boolean(result.rows[0]?.has_rows);
+  } catch (error) {
+    if (isUndefinedTableError(error)) {
+      return false;
+    }
+    throw error;
+  }
 }
 
 tilesRouter.get(
@@ -361,8 +402,17 @@ tilesRouter.get(
     }
 
     const tileSql = buildTileSql(layer, config);
-    const result = await pool.query(tileSql, [z, x, y, env.TILE_MAX_FEATURES, layer]);
-    const tile = result.rows[0]?.tile as Buffer | null | undefined;
+    let tile: Buffer | null | undefined;
+    try {
+      const result = await pool.query(tileSql, [z, x, y, env.TILE_MAX_FEATURES, layer]);
+      tile = result.rows[0]?.tile as Buffer | null | undefined;
+    } catch (error) {
+      if (isUndefinedTableError(error)) {
+        res.send(EMPTY_TILE);
+        return;
+      }
+      throw error;
+    }
 
     if (!tile || tile.length === 0) {
       res.send(EMPTY_TILE);

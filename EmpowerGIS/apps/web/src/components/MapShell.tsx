@@ -525,6 +525,49 @@ function buildLayerDefinitions(layerKey: string, sourceId: string): AnyLayer[] {
           }
         } as AnyLayer
       ];
+    case "oil-gas-leases":
+      return [
+        {
+          id: "layer-oil-gas-leases-fill",
+          type: "fill",
+          source: sourceId,
+          "source-layer": "oil-gas-leases",
+          filter: ["==", ["geometry-type"], "Polygon"],
+          paint: {
+            "fill-color": [
+              "coalesce",
+              ["to-color", ["get", "source_color"]],
+              "#be123c"
+            ],
+            "fill-opacity": 0.27
+          }
+        } as AnyLayer,
+        {
+          id: "layer-oil-gas-leases-line",
+          type: "line",
+          source: sourceId,
+          "source-layer": "oil-gas-leases",
+          paint: {
+            "line-color": [
+              "coalesce",
+              ["to-color", ["get", "source_color"]],
+              "#9f1239"
+            ],
+            "line-width": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              8,
+              0.9,
+              12,
+              1.4,
+              15,
+              2.1
+            ],
+            "line-opacity": 0.95
+          }
+        } as AnyLayer
+      ];
     case "parcels":
       return [
         {

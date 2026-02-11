@@ -16,7 +16,8 @@ const layers = [
   ["water-infrastructure", "Water Infrastructure"],
   ["sewer-infrastructure", "Sewer Infrastructure"],
   ["cities-etj", "Cities / ETJ"],
-  ["opportunity-zones", "Opportunity Zones"]
+  ["opportunity-zones", "Opportunity Zones"],
+  ["oil-gas-leases", "Oil & Gas Leases"]
 ];
 
 async function run() {
