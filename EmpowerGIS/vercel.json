@@ -4,13 +4,10 @@
   "installCommand": "npm install",
   "buildCommand": "npm run build -w @empowergis/web",
   "outputDirectory": "apps/web/dist",
-  "routes": [
+  "rewrites": [
     {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/.*",
-      "dest": "/index.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
