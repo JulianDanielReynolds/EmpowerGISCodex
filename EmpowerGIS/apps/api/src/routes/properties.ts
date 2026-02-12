@@ -29,9 +29,7 @@ const parcelKeyParamsSchema = z.object({
   parcelKey: z.string().trim().min(1).max(160)
 });
 
-const TRAVIS_ACREAGE_DIVISOR = 10.763910416709722;
-
-function normalizeAcreageValue(acreage: number | null, countyName?: string | null): number | null {
+function normalizeAcreageValue(acreage: number | null, _countyName?: string | null): number | null {
   if (acreage === null || acreage === undefined || Number.isNaN(acreage)) {
     return null;
   }
@@ -41,9 +39,7 @@ function normalizeAcreageValue(acreage: number | null, countyName?: string | nul
     return null;
   }
 
-  const isTravisCounty = (countyName ?? "").trim().toUpperCase() === "TRAVIS";
-  const normalized = isTravisCounty ? parsed / TRAVIS_ACREAGE_DIVISOR : parsed;
-  return Number(normalized.toFixed(4));
+  return Number(parsed.toFixed(4));
 }
 
 propertiesRouter.get(
@@ -582,16 +578,7 @@ propertiesRouter.get(
           COUNT(DISTINCT county_fips)::int AS county_count,
           COALESCE(SUM(market_value), 0)::numeric(16,2) AS total_market_value,
           COALESCE(AVG(market_value), 0)::numeric(16,2) AS avg_market_value,
-          COALESCE(
-            SUM(
-              CASE
-                WHEN UPPER(COALESCE(county_name, '')) = 'TRAVIS' AND acreage IS NOT NULL
-                  THEN acreage / ${TRAVIS_ACREAGE_DIVISOR}
-                ELSE COALESCE(acreage, 0)
-              END
-            ),
-            0
-          )::numeric(16,2) AS total_acreage
+          COALESCE(SUM(COALESCE(acreage, 0)), 0)::numeric(16,2) AS total_acreage
         FROM parcels
       `
     );

@@ -161,13 +161,7 @@ const LIVE_LAYERS: Record<string, LiveLayerConfig> = {
       "COALESCE(situs_address, '') AS situs_address",
       "COALESCE(owner_name, '') AS owner_name",
       "COALESCE(market_value, 0)::float8 AS market_value",
-      `
-      CASE
-        WHEN UPPER(COALESCE(county_name, '')) = 'TRAVIS' AND acreage IS NOT NULL
-          THEN (acreage / 10.763910416709722)::float8
-        ELSE COALESCE(acreage, 0)::float8
-      END AS acreage
-      `,
+      "COALESCE(acreage, 0)::float8 AS acreage",
       "COALESCE(zoning_code, '') AS zoning_code"
     ],
     vectorFields: {
