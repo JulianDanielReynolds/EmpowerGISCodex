@@ -176,3 +176,27 @@ export async function searchProperties(accessToken, query, limit = 10, options) 
     const response = await authorizedRequest(`/properties/search?q=${encodedQuery}&limit=${limit}`, accessToken, undefined, options);
     return response.results;
 }
+export async function getAdminUsers(accessToken, options) {
+    const params = new URLSearchParams();
+    if (options?.limit)
+        params.set("limit", String(options.limit));
+    if (options?.offset)
+        params.set("offset", String(options.offset));
+    if (options?.search)
+        params.set("search", options.search);
+    const query = params.toString();
+    return authorizedRequest(`/admin/users${query ? `?${query}` : ""}`, accessToken, undefined, options);
+}
+export async function getAdminActivity(accessToken, options) {
+    const params = new URLSearchParams();
+    if (options?.limit)
+        params.set("limit", String(options.limit));
+    if (options?.offset)
+        params.set("offset", String(options.offset));
+    if (options?.userId)
+        params.set("userId", String(options.userId));
+    if (options?.eventType)
+        params.set("eventType", options.eventType);
+    const query = params.toString();
+    return authorizedRequest(`/admin/activity${query ? `?${query}` : ""}`, accessToken, undefined, options);
+}

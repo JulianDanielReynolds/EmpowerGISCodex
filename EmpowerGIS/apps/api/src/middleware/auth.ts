@@ -16,6 +16,7 @@ export interface AuthenticatedRequest extends Request {
     userId: number;
     sessionId: string;
     username: string;
+    role: "user" | "admin";
   };
 }
 
@@ -48,7 +49,7 @@ export async function requireAuth(
 
   const sessionResult = await pool.query(
     `
-      SELECT s.id, s.user_id, u.username
+      SELECT s.id, s.user_id, u.username, u.user_role
       FROM user_sessions s
       INNER JOIN users u ON u.id = s.user_id
       WHERE s.id = $1
@@ -66,12 +67,36 @@ export async function requireAuth(
     return;
   }
 
+  const session = sessionResult.rows[0] as {
+    username: string;
+    user_role: string | null;
+  };
+
   req.auth = {
     userId,
     sessionId: payload.sid,
-    username: payload.username
+    username: session.username,
+    role: session.user_role === "admin" ? "admin" : "user"
   };
 
   await pool.query("UPDATE user_sessions SET last_seen_at = NOW() WHERE id = $1", [payload.sid]);
+  next();
+}
+
+export function requireAdmin(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): void {
+  if (!req.auth) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
+  if (req.auth.role !== "admin") {
+    res.status(403).json({ error: "Admin access required" });
+    return;
+  }
+
   next();
 }

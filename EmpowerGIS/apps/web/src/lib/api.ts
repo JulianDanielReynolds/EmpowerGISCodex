@@ -16,6 +16,7 @@ export interface AuthUser {
   email: string;
   companyName: string;
   phoneNumber: string;
+  role: "user" | "admin";
   createdAt?: string;
   lastLoginAt?: string | null;
 }
@@ -73,6 +74,33 @@ export interface PropertySearchResult {
   zoning: string;
   longitude: number;
   latitude: number;
+}
+
+export interface AdminUserSummary {
+  id: number;
+  username: string;
+  email: string;
+  phoneNumber: string;
+  companyName: string;
+  role: "user" | "admin";
+  isActive: boolean;
+  createdAt: string;
+  lastLoginAt: string | null;
+  lastActivityAt: string | null;
+  activeSessionCount: number;
+}
+
+export interface AdminActivityEvent {
+  id: number;
+  createdAt: string;
+  eventType: string;
+  metadata: Record<string, unknown>;
+  user: {
+    id: number;
+    username: string;
+    email: string;
+    companyName: string;
+  } | null;
 }
 
 class ApiError extends Error {
@@ -336,4 +364,48 @@ export async function searchProperties(
     options
   );
   return response.results;
+}
+
+export async function getAdminUsers(
+  accessToken: string,
+  options?: AuthRequestOptions & {
+    limit?: number;
+    offset?: number;
+    search?: string;
+  }
+): Promise<{ total: number; count: number; users: AdminUserSummary[] }> {
+  const params = new URLSearchParams();
+  if (options?.limit) params.set("limit", String(options.limit));
+  if (options?.offset) params.set("offset", String(options.offset));
+  if (options?.search) params.set("search", options.search);
+  const query = params.toString();
+  return authorizedRequest<{ total: number; count: number; users: AdminUserSummary[] }>(
+    `/admin/users${query ? `?${query}` : ""}`,
+    accessToken,
+    undefined,
+    options
+  );
+}
+
+export async function getAdminActivity(
+  accessToken: string,
+  options?: AuthRequestOptions & {
+    limit?: number;
+    offset?: number;
+    userId?: number;
+    eventType?: string;
+  }
+): Promise<{ total: number; count: number; events: AdminActivityEvent[] }> {
+  const params = new URLSearchParams();
+  if (options?.limit) params.set("limit", String(options.limit));
+  if (options?.offset) params.set("offset", String(options.offset));
+  if (options?.userId) params.set("userId", String(options.userId));
+  if (options?.eventType) params.set("eventType", options.eventType);
+  const query = params.toString();
+  return authorizedRequest<{ total: number; count: number; events: AdminActivityEvent[] }>(
+    `/admin/activity${query ? `?${query}` : ""}`,
+    accessToken,
+    undefined,
+    options
+  );
 }

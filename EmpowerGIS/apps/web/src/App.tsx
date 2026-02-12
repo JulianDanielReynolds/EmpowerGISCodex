@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import AuthCard from "./components/AuthCard";
+import AdminShell from "./components/AdminShell";
 import DisclaimerGate from "./components/DisclaimerGate";
 import MapShell from "./components/MapShell";
 import { getCurrentUser, logout, type AuthUser, type SessionTokens } from "./lib/api";
@@ -7,6 +8,12 @@ import { getCurrentUser, logout, type AuthUser, type SessionTokens } from "./lib
 const DISCLAIMER_STORAGE_KEY = "empowergis_disclaimer_accepted";
 const ACCESS_TOKEN_KEY = "empowergis_access_token";
 const REFRESH_TOKEN_KEY = "empowergis_refresh_token";
+
+type AppView = "map" | "admin";
+
+function resolveViewFromPath(pathname: string): AppView {
+  return pathname.startsWith("/admin") ? "admin" : "map";
+}
 
 export default function App() {
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(
@@ -16,6 +23,7 @@ export default function App() {
   const [refreshToken, setRefreshToken] = useState<string | null>(localStorage.getItem(REFRESH_TOKEN_KEY));
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [view, setView] = useState<AppView>(() => resolveViewFromPath(window.location.pathname));
 
   const storeSessionTokens = useCallback((tokens: SessionTokens) => {
     localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
@@ -70,6 +78,16 @@ export default function App() {
     void run();
   }, [accessToken, refreshToken, handleLogout, storeSessionTokens]);
 
+  useEffect(() => {
+    const handlePopState = () => {
+      setView(resolveViewFromPath(window.location.pathname));
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
+
   const handleDisclaimerAccept = () => {
     localStorage.setItem(DISCLAIMER_STORAGE_KEY, "true");
     setDisclaimerAccepted(true);
@@ -83,19 +101,39 @@ export default function App() {
     void handleLogout();
   }, [handleLogout]);
 
+  const navigateToView = useCallback((nextView: AppView) => {
+    const targetPath = nextView === "admin" ? "/admin" : "/";
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState({}, "", targetPath);
+    }
+    setView(nextView);
+  }, []);
+
   if (isCheckingSession) {
     return <div className="boot">Checking session...</div>;
   }
 
   return (
     <>
-      <MapShell
-        user={user}
-        accessToken={accessToken}
-        refreshToken={refreshToken}
-        onSessionTokensUpdated={storeSessionTokens}
-        onLogout={handleLogoutClick}
-      />
+      {view === "admin" ? (
+        <AdminShell
+          user={user}
+          accessToken={accessToken}
+          refreshToken={refreshToken}
+          onSessionTokensUpdated={storeSessionTokens}
+          onBackToMap={() => navigateToView("map")}
+          onLogout={handleLogoutClick}
+        />
+      ) : (
+        <MapShell
+          user={user}
+          accessToken={accessToken}
+          refreshToken={refreshToken}
+          onSessionTokensUpdated={storeSessionTokens}
+          onLogout={handleLogoutClick}
+          {...(user?.role === "admin" ? { onOpenAdmin: () => navigateToView("admin") } : {})}
+        />
+      )}
       {!disclaimerAccepted ? <DisclaimerGate onAccept={handleDisclaimerAccept} /> : null}
       {disclaimerAccepted && !accessToken ? <AuthCard onLoginSuccess={handleLoginSuccess} /> : null}
     </>

@@ -77,7 +77,7 @@ authRouter.post(
         INSERT INTO users (username, email, password_hash, phone_number, company_name)
         VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT DO NOTHING
-        RETURNING id, username, email, phone_number, company_name, created_at
+        RETURNING id, username, email, phone_number, company_name, user_role, created_at
       `,
       [username, email, passwordHash, phoneNumber, companyName]
     );
@@ -93,6 +93,7 @@ authRouter.post(
       email: string;
       phone_number: string;
       company_name: string;
+      user_role: string;
       created_at: string;
     };
     const userId = Number(user.id);
@@ -114,6 +115,7 @@ authRouter.post(
         email: user.email,
         phoneNumber: user.phone_number,
         companyName: user.company_name,
+        role: user.user_role === "admin" ? "admin" : "user",
         createdAt: user.created_at
       }
     });
@@ -136,7 +138,7 @@ authRouter.post(
 
     const userResult = await pool.query(
       `
-        SELECT id, username, email, password_hash, is_active, company_name, phone_number
+        SELECT id, username, email, password_hash, is_active, company_name, phone_number, user_role
         FROM users
         WHERE username = $1
         LIMIT 1
@@ -158,6 +160,7 @@ authRouter.post(
       is_active: boolean;
       company_name: string;
       phone_number: string;
+      user_role: string;
     };
     const userId = Number(user.id);
 
@@ -240,7 +243,8 @@ authRouter.post(
           username: user.username,
           email: user.email,
           companyName: user.company_name,
-          phoneNumber: user.phone_number
+          phoneNumber: user.phone_number,
+          role: user.user_role === "admin" ? "admin" : "user"
         }
       });
     } catch (error) {
@@ -381,7 +385,7 @@ authRouter.get(
 
     const result = await pool.query(
       `
-        SELECT id, username, email, phone_number, company_name, created_at, last_login_at
+        SELECT id, username, email, phone_number, company_name, user_role, created_at, last_login_at
         FROM users
         WHERE id = $1
         LIMIT 1
@@ -400,6 +404,7 @@ authRouter.get(
       email: string;
       phone_number: string;
       company_name: string;
+      user_role: string;
       created_at: string;
       last_login_at: string | null;
     };
@@ -410,6 +415,7 @@ authRouter.get(
       email: user.email,
       phoneNumber: user.phone_number,
       companyName: user.company_name,
+      role: user.user_role === "admin" ? "admin" : "user",
       createdAt: user.created_at,
       lastLoginAt: user.last_login_at
     });

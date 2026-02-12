@@ -19,6 +19,7 @@ interface MapShellProps {
   refreshToken: string | null;
   onSessionTokensUpdated: (tokens: SessionTokens) => void;
   onLogout: () => void;
+  onOpenAdmin?: () => void;
 }
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string | undefined;
@@ -636,7 +637,8 @@ export default function MapShell({
   accessToken,
   refreshToken,
   onSessionTokensUpdated,
-  onLogout
+  onLogout,
+  onOpenAdmin
 }: MapShellProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
@@ -1066,6 +1068,11 @@ export default function MapShell({
         </div>
         <div className="top-bar-right">
           <span>{user?.username ?? "Unknown user"}</span>
+          {onOpenAdmin ? (
+            <button className="ghost" onClick={onOpenAdmin}>
+              Admin
+            </button>
+          ) : null}
           <button className="ghost" onClick={onLogout}>
             Logout
           </button>

@@ -592,7 +592,7 @@ function buildLayerDefinitions(layerKey, sourceId) {
             return [];
     }
 }
-export default function MapShell({ user, accessToken, refreshToken, onSessionTokensUpdated, onLogout }) {
+export default function MapShell({ user, accessToken, refreshToken, onSessionTokensUpdated, onLogout, onOpenAdmin }) {
     const mapContainerRef = useRef(null);
     const mapRef = useRef(null);
     const markerRef = useRef(null);
@@ -956,7 +956,7 @@ export default function MapShell({ user, accessToken, refreshToken, onSessionTok
         }
         void runSearch(trimmed);
     }, [searchQuery, runSearch]);
-    return (_jsxs("main", { className: "app-layout", children: [_jsxs("header", { className: "top-bar", children: [_jsxs("div", { children: [_jsx("h1", { children: "EmpowerGIS" }), _jsx("p", { children: "Austin Metro Land Intelligence" })] }), _jsxs("div", { className: "top-bar-right", children: [_jsx("span", { children: user?.username ?? "Unknown user" }), _jsx("button", { className: "ghost", onClick: onLogout, children: "Logout" })] })] }), _jsxs("section", { className: `content${shouldShowPropertyPanel ? " has-property-panel" : ""}`, children: [_jsxs("aside", { className: "panel", children: [_jsxs("h2", { children: ["Layers (", activeLayerCount, ")"] }), layersError ? _jsx("p", { className: "error", children: layersError }) : null, _jsx("ul", { children: layers.map((layer) => (_jsx("li", { children: _jsxs("label", { children: [_jsx("input", { type: "checkbox", checked: Boolean(layerVisibility[layer.key]), disabled: layer.status !== "ready", onChange: (event) => setLayerVisibility((current) => ({
+    return (_jsxs("main", { className: "app-layout", children: [_jsxs("header", { className: "top-bar", children: [_jsxs("div", { children: [_jsx("h1", { children: "EmpowerGIS" }), _jsx("p", { children: "Austin Metro Land Intelligence" })] }), _jsxs("div", { className: "top-bar-right", children: [_jsx("span", { children: user?.username ?? "Unknown user" }), onOpenAdmin ? (_jsx("button", { className: "ghost", onClick: onOpenAdmin, children: "Admin" })) : null, _jsx("button", { className: "ghost", onClick: onLogout, children: "Logout" })] })] }), _jsxs("section", { className: `content${shouldShowPropertyPanel ? " has-property-panel" : ""}`, children: [_jsxs("aside", { className: "panel", children: [_jsxs("h2", { children: ["Layers (", activeLayerCount, ")"] }), layersError ? _jsx("p", { className: "error", children: layersError }) : null, _jsx("ul", { children: layers.map((layer) => (_jsx("li", { children: _jsxs("label", { children: [_jsx("input", { type: "checkbox", checked: Boolean(layerVisibility[layer.key]), disabled: layer.status !== "ready", onChange: (event) => setLayerVisibility((current) => ({
                                                     ...current,
                                                     [layer.key]: event.target.checked
                                                 })) }), _jsx("span", { children: layer.name })] }) }, layer.key))) })] }), _jsxs("section", { className: "map-stage", children: [_jsxs("div", { className: "map-toolbar", children: [_jsx("input", { value: searchQuery, onChange: (event) => {

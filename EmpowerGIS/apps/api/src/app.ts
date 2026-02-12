@@ -5,6 +5,7 @@ import rateLimit from "express-rate-limit";
 import { corsOrigins } from "./config/env.js";
 import healthRouter from "./routes/health.js";
 import authRouter from "./routes/auth.js";
+import adminRouter from "./routes/admin.js";
 import propertiesRouter from "./routes/properties.js";
 import layersRouter from "./routes/layers.js";
 import tilesRouter from "./routes/tiles.js";
@@ -35,6 +36,7 @@ export function createApp() {
 
   app.use("/api", healthRouter);
   app.use("/api/auth", authRouter);
+  app.use("/api/admin", adminRouter);
   app.use("/api/properties", propertiesRouter);
   app.use("/api/layers", layersRouter);
   app.use("/tiles", tilesRouter);
@@ -53,6 +55,10 @@ export function createApp() {
           "POST /api/auth/logout",
           "POST /api/auth/logout-all",
           "GET /api/auth/me"
+        ],
+        admin: [
+          "GET /api/admin/users",
+          "GET /api/admin/activity"
         ],
         properties: [
           "GET /api/properties/by-coordinates?longitude=&latitude=",
