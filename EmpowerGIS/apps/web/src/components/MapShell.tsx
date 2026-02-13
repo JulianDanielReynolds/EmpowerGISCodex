@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
-import type { AnyLayer, Map as MapboxMap } from "mapbox-gl";
+import type { AnyLayer, LngLatBoundsLike, Map as MapboxMap } from "mapbox-gl";
 import {
   getLayerCatalog,
   getPropertyByParcelKey,
@@ -32,6 +32,10 @@ const MEASUREMENT_POINT_LAYER_ID = "layer-measurement-points";
 const EARTH_RADIUS_METERS = 6_371_008.8;
 const METERS_TO_FEET = 3.280839895013123;
 const SQUARE_METERS_PER_ACRE = 4_046.8564224;
+const INITIAL_MAP_BOUNDS: LngLatBoundsLike = [
+  [-98.65, 29.35], // San Antonio area
+  [-97.2, 31.2] // Temple area
+];
 
 type MeasurementMode = "distance" | "area";
 type MeasurementPoint = [number, number];
@@ -712,8 +716,16 @@ export default function MapShell({
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
       style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: [-97.75, 30.27],
-      zoom: 10.2
+      bounds: INITIAL_MAP_BOUNDS,
+      fitBoundsOptions: {
+        padding: {
+          top: 24,
+          bottom: 24,
+          left: 24,
+          right: 24
+        },
+        maxZoom: 8.4
+      }
     });
 
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
