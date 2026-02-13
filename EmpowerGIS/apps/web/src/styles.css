@@ -198,6 +198,12 @@ body {
   width: 33%;
 }
 
+.owner-address {
+  margin-top: 0.2rem;
+  color: #4d6578;
+  font-size: 0.8rem;
+}
+
 .map-stage {
   display: grid;
   grid-template-rows: auto 1fr;

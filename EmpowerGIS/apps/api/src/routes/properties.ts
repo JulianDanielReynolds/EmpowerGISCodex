@@ -42,6 +42,67 @@ function normalizeAcreageValue(acreage: number | null, _countyName?: string | nu
   return Number(parsed.toFixed(4));
 }
 
+const ADDRESS_TOKEN_EXPANSIONS: Record<string, string> = {
+  N: "North",
+  S: "South",
+  E: "East",
+  W: "West",
+  NE: "Northeast",
+  NW: "Northwest",
+  SE: "Southeast",
+  SW: "Southwest",
+  ST: "Street",
+  RD: "Road",
+  DR: "Drive",
+  AVE: "Avenue",
+  BLVD: "Boulevard",
+  LN: "Lane",
+  CT: "Court",
+  CIR: "Circle",
+  PL: "Place",
+  PKWY: "Parkway",
+  HWY: "Highway",
+  TRL: "Trail",
+  SQ: "Square",
+  TER: "Terrace",
+  WAY: "Way",
+  TX: "Texas"
+};
+
+function toTitleCaseWord(word: string): string {
+  return word
+    .toLowerCase()
+    .replace(/(^|[-/'])\p{L}/gu, (match) => match.toUpperCase());
+}
+
+function formatPropertyAddress(address: string | null | undefined): string | null {
+  if (!address) return null;
+
+  const compact = address.trim().replace(/\s+/g, " ");
+  if (!compact) return null;
+
+  const tokens = compact.split(" ");
+  const formatted = tokens.map((token) => {
+    const upper = token.toUpperCase();
+    const expanded = ADDRESS_TOKEN_EXPANSIONS[upper];
+    if (expanded) {
+      return expanded;
+    }
+
+    if (/^\d{5}(?:-\d{4})?$/.test(token) || /^\d+[A-Za-z]?$/.test(token)) {
+      return token.toUpperCase();
+    }
+
+    if (/^[A-Za-z0-9][A-Za-z0-9'/-]*$/.test(token)) {
+      return toTitleCaseWord(token);
+    }
+
+    return token;
+  });
+
+  return formatted.join(" ");
+}
+
 propertiesRouter.get(
   "/by-coordinates",
   requireAuth,
@@ -82,10 +143,7 @@ propertiesRouter.get(
         )
         SELECT
           p.parcel_key,
-          CASE
-            WHEN COALESCE(NULLIF(p.situs_address, ''), '') ~ '^[0-9]' THEN p.situs_address
-            ELSE COALESCE(NULLIF(ap.address_label, ''), p.situs_address)
-          END AS situs_address,
+          COALESCE(NULLIF(ap.address_label, ''), NULLIF(p.situs_address, '')) AS situs_address,
           p.owner_name,
           p.owner_mailing_address,
           p.legal_description,
@@ -106,8 +164,15 @@ propertiesRouter.get(
         LEFT JOIN LATERAL (
           SELECT ap.address_label
           FROM address_points ap
-          WHERE ST_DWithin(ap.geom, p.geom, 0.0012)
-          ORDER BY ST_Distance(ap.geom, ST_PointOnSurface(p.geom)) ASC
+          WHERE
+            ST_Intersects(ap.geom, p.geom)
+            OR ST_DWithin(ap.geom, ST_PointOnSurface(p.geom), 0.003)
+          ORDER BY
+            CASE
+              WHEN ST_Intersects(ap.geom, p.geom) THEN 0
+              ELSE 1
+            END ASC,
+            ST_Distance(ap.geom, ST_PointOnSurface(p.geom)) ASC
           LIMIT 1
         ) ap ON TRUE
         LIMIT 1
@@ -151,9 +216,9 @@ propertiesRouter.get(
 
     res.json({
       parcelKey: row.parcel_key,
-      address: row.situs_address ?? "Address unavailable",
+      address: formatPropertyAddress(row.situs_address) ?? "Address unavailable",
       ownerName: row.owner_name ?? "Unknown",
-      ownerAddress: row.owner_mailing_address,
+      ownerAddress: formatPropertyAddress(row.owner_mailing_address),
       legalDescription: row.legal_description ?? "",
       acreage: normalizeAcreageValue(row.acreage, row.county_name),
       zoning: row.zoning_code ?? "Not mapped",
@@ -189,10 +254,7 @@ propertiesRouter.get(
       `
         SELECT
           p.parcel_key,
-          CASE
-            WHEN COALESCE(NULLIF(p.situs_address, ''), '') ~ '^[0-9]' THEN p.situs_address
-            ELSE COALESCE(NULLIF(ap.address_label, ''), p.situs_address)
-          END AS situs_address,
+          COALESCE(NULLIF(ap.address_label, ''), NULLIF(p.situs_address, '')) AS situs_address,
           p.owner_name,
           p.owner_mailing_address,
           p.legal_description,
@@ -214,8 +276,15 @@ propertiesRouter.get(
         LEFT JOIN LATERAL (
           SELECT ap.address_label
           FROM address_points ap
-          WHERE ST_DWithin(ap.geom, p.geom, 0.0012)
-          ORDER BY ST_Distance(ap.geom, ST_PointOnSurface(p.geom)) ASC
+          WHERE
+            ST_Intersects(ap.geom, p.geom)
+            OR ST_DWithin(ap.geom, ST_PointOnSurface(p.geom), 0.003)
+          ORDER BY
+            CASE
+              WHEN ST_Intersects(ap.geom, p.geom) THEN 0
+              ELSE 1
+            END ASC,
+            ST_Distance(ap.geom, ST_PointOnSurface(p.geom)) ASC
           LIMIT 1
         ) ap ON TRUE
         WHERE UPPER(p.parcel_key) = UPPER($1)
@@ -257,9 +326,9 @@ propertiesRouter.get(
 
     res.json({
       parcelKey: row.parcel_key,
-      address: row.situs_address ?? "Address unavailable",
+      address: formatPropertyAddress(row.situs_address) ?? "Address unavailable",
       ownerName: row.owner_name ?? "Unknown",
-      ownerAddress: row.owner_mailing_address,
+      ownerAddress: formatPropertyAddress(row.owner_mailing_address),
       legalDescription: row.legal_description ?? "",
       acreage: normalizeAcreageValue(row.acreage, row.county_name),
       zoning: row.zoning_code ?? "Not mapped",
@@ -494,7 +563,7 @@ propertiesRouter.get(
       count: result.rowCount,
       results: result.rows.map((row) => ({
         parcelKey: row.parcel_key,
-        address: row.situs_address ?? "Address unavailable",
+        address: formatPropertyAddress(row.situs_address) ?? "Address unavailable",
         ownerName: row.owner_name ?? "Unknown",
         county: row.county_name,
         acreage: normalizeAcreageValue(row.acreage, row.county_name),

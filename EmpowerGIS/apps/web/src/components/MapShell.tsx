@@ -1210,7 +1210,7 @@ export default function MapShell({
         {shouldShowPropertyPanel ? (
           <aside className="panel">
             <div className="panel-header">
-              <h2>Parcel Data</h2>
+              <h2>Property Data</h2>
               <button
                 type="button"
                 className="ghost panel-close"
@@ -1233,7 +1233,12 @@ export default function MapShell({
                 </tr>
                 <tr>
                   <th>Owner</th>
-                  <td>{selectedProperty?.ownerName ?? "N/A"}</td>
+                  <td>
+                    <div>{selectedProperty?.ownerName ?? "N/A"}</div>
+                    <div className="owner-address">
+                      {selectedProperty?.ownerAddress?.trim() || "Owner mailing address unavailable"}
+                    </div>
+                  </td>
                 </tr>
                 <tr>
                   <th>Acreage</th>
