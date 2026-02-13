@@ -203,13 +203,43 @@ function resolveOpportunityZoneSources() {
 }
 
 function resolveParcelSources() {
-  return mergeUniqueSources(
-    resolveExistingSources([
-      "parcels/travis_county_parcels.geojson",
-      "parcels/williamson_county_parcels.geojson",
-      "parcels/hays_county_parcels.geojson"
-    ])
-  );
+  const parcelRoot = path.join(SOURCE_ROOT, "parcels");
+  const stratmapShapefiles = [];
+  if (fs.existsSync(parcelRoot) && fs.statSync(parcelRoot).isDirectory()) {
+    const countyHints = ["travis", "williamson", "hays"];
+    const entries = fs.readdirSync(parcelRoot, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !/^stratmap25-landparcels_/i.test(entry.name)) {
+        continue;
+      }
+
+      const shpDir = path.join(parcelRoot, entry.name, "shp");
+      if (!fs.existsSync(shpDir) || !fs.statSync(shpDir).isDirectory()) {
+        continue;
+      }
+
+      const shpEntries = fs.readdirSync(shpDir, { withFileTypes: true });
+      for (const shpEntry of shpEntries) {
+        if (!shpEntry.isFile() || !/\.shp$/i.test(shpEntry.name)) {
+          continue;
+        }
+        const lowerName = shpEntry.name.toLowerCase();
+        if (countyHints.some((countyName) => lowerName.includes(`_${countyName}_`))) {
+          stratmapShapefiles.push(path.join(shpDir, shpEntry.name));
+        }
+      }
+    }
+  }
+
+  if (stratmapShapefiles.length > 0) {
+    return mergeUniqueSources(stratmapShapefiles);
+  }
+
+  return mergeUniqueSources(resolveExistingSources([
+    "parcels/travis_county_parcels.geojson",
+    "parcels/williamson_county_parcels.geojson",
+    "parcels/hays_county_parcels.geojson"
+  ]));
 }
 
 function resolveOilGasLeaseSources() {
@@ -722,38 +752,121 @@ const IMPORT_PLAN = [
     stagingTable: "staging_parcels",
     resolveSources: () => resolveParcelSources(),
     transformSql: (versionId) => `
-      WITH normalized AS (
+      WITH staged AS (
         SELECT
-          COALESCE(
-            NULLIF(TRIM(CONCAT_WS('-', UPPER(NULLIF(county::text, '')), NULLIF(prop_id::text, ''))), ''),
-            md5(ST_AsBinary(geom)::text)
-          ) AS parcel_key,
-          CASE UPPER(COALESCE(county::text, ''))
-            WHEN 'TRAVIS' THEN '453'
-            WHEN 'WILLIAMSON' THEN '491'
-            WHEN 'HAYS' THEN '209'
-            ELSE NULL
-          END AS county_fips,
-          NULLIF(county::text, '') AS county_name,
-          TRIM(CONCAT_WS(' ',
-            NULLIF(situs_num::text, ''),
-            NULLIF(situs_st_1::text, ''),
-            NULLIF(situs_city::text, ''),
-            NULLIF(situs_zip::text, '')
-          )) AS situs_address,
-          NULLIF(owner_name::text, '') AS owner_name,
-          NULLIF(legal_desc::text, '') AS legal_description,
-          CASE
-            WHEN UPPER(COALESCE(county::text, '')) = 'TRAVIS'
-              THEN (NULLIF(gis_area::text, '')::numeric(12,4) / 10.7639104167)
-            ELSE NULLIF(gis_area::text, '')::numeric(12,4)
-          END AS acreage,
-          NULLIF(land_value::text, '')::numeric(14,2) AS land_value,
-          NULLIF(imp_value::text, '')::numeric(14,2) AS improvement_value,
-          NULLIF(mkt_value::text, '')::numeric(14,2) AS market_value,
+          to_jsonb(staging_parcels) AS props,
           ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_Force2D(geom)), 3))::geometry(MULTIPOLYGON, 4326) AS geom
         FROM staging_parcels
         WHERE geom IS NOT NULL
+      ),
+      normalized AS (
+        SELECT
+          COALESCE(
+            NULLIF(
+              TRIM(
+                CONCAT_WS(
+                  '-',
+                  UPPER(NULLIF(COALESCE(NULLIF(props->>'county', ''), NULLIF(props->>'cnty_nm', '')), '')),
+                  NULLIF(COALESCE(NULLIF(props->>'prop_id', ''), NULLIF(props->>'parcel_id', '')), '')
+                )
+              ),
+              ''
+            ),
+            md5(ST_AsBinary(geom)::text)
+          ) AS parcel_key,
+          COALESCE(
+            NULLIF(props->>'fips', ''),
+            CASE UPPER(COALESCE(NULLIF(props->>'county', ''), NULLIF(props->>'cnty_nm', ''), ''))
+              WHEN 'TRAVIS' THEN '453'
+              WHEN 'WILLIAMSON' THEN '491'
+              WHEN 'HAYS' THEN '209'
+              ELSE NULL
+            END
+          ) AS county_fips,
+          COALESCE(NULLIF(props->>'county', ''), NULLIF(props->>'cnty_nm', '')) AS county_name,
+          COALESCE(
+            NULLIF(TRIM(props->>'situs_addr'), ''),
+            NULLIF(
+              TRIM(
+                CONCAT_WS(
+                  ' ',
+                  NULLIF(props->>'situs_num', ''),
+                  NULLIF(props->>'situs_st_1', ''),
+                  NULLIF(props->>'situs_st_2', ''),
+                  NULLIF(props->>'situs_city', ''),
+                  NULLIF(props->>'situs_stat', ''),
+                  NULLIF(props->>'situs_zip', '')
+                )
+              ),
+              ''
+            )
+          ) AS situs_address,
+          NULLIF(props->>'owner_name', '') AS owner_name,
+          COALESCE(
+            NULLIF(TRIM(props->>'mail_addr'), ''),
+            NULLIF(
+              TRIM(
+                CONCAT_WS(
+                  ', ',
+                  NULLIF(
+                    TRIM(
+                      CONCAT_WS(
+                        ' ',
+                        NULLIF(props->>'mail_line1', ''),
+                        NULLIF(props->>'mail_line2', '')
+                      )
+                    ),
+                    ''
+                  ),
+                  NULLIF(
+                    TRIM(
+                      CONCAT_WS(
+                        ' ',
+                        NULLIF(props->>'mail_city', ''),
+                        NULLIF(props->>'mail_stat', ''),
+                        NULLIF(props->>'mail_zip', '')
+                      )
+                    ),
+                    ''
+                  )
+                )
+              ),
+              ''
+            )
+          ) AS owner_mailing_address,
+          NULLIF(props->>'legal_desc', '') AS legal_description,
+          CASE
+            WHEN COALESCE(NULLIF(REPLACE(props->>'gis_area', ',', ''), ''), '') !~
+              '^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'
+              THEN NULL
+            WHEN UPPER(COALESCE(NULLIF(props->>'gis_area_u', ''), NULLIF(props->>'lgl_area_u', ''), 'ACRES'))
+              IN ('SQFT', 'SQUARE_FEET', 'SQUARE FEET', 'FT2')
+              THEN (REPLACE(props->>'gis_area', ',', '')::double precision / 43560.0)::numeric(12,4)
+            WHEN UPPER(COALESCE(NULLIF(props->>'gis_area_u', ''), NULLIF(props->>'lgl_area_u', ''), 'ACRES'))
+              IN ('SQM', 'SQUARE_METERS', 'SQUARE METERS', 'M2')
+              THEN (REPLACE(props->>'gis_area', ',', '')::double precision * 0.00024710538146717)::numeric(12,4)
+            ELSE (REPLACE(props->>'gis_area', ',', '')::double precision)::numeric(12,4)
+          END AS acreage,
+          CASE
+            WHEN COALESCE(NULLIF(REPLACE(props->>'land_value', ',', ''), ''), '') ~
+              '^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'
+              THEN (REPLACE(props->>'land_value', ',', '')::double precision)::numeric(14,2)
+            ELSE NULL
+          END AS land_value,
+          CASE
+            WHEN COALESCE(NULLIF(REPLACE(props->>'imp_value', ',', ''), ''), '') ~
+              '^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'
+              THEN (REPLACE(props->>'imp_value', ',', '')::double precision)::numeric(14,2)
+            ELSE NULL
+          END AS improvement_value,
+          CASE
+            WHEN COALESCE(NULLIF(REPLACE(props->>'mkt_value', ',', ''), ''), '') ~
+              '^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'
+              THEN (REPLACE(props->>'mkt_value', ',', '')::double precision)::numeric(14,2)
+            ELSE NULL
+          END AS market_value,
+          geom
+        FROM staged
       ),
       ranked AS (
         SELECT
@@ -770,6 +883,7 @@ const IMPORT_PLAN = [
         county_name,
         situs_address,
         owner_name,
+        owner_mailing_address,
         legal_description,
         acreage,
         land_value,
@@ -784,6 +898,7 @@ const IMPORT_PLAN = [
         county_name,
         situs_address,
         owner_name,
+        owner_mailing_address,
         legal_description,
         acreage,
         land_value,
@@ -799,6 +914,7 @@ const IMPORT_PLAN = [
         county_name = EXCLUDED.county_name,
         situs_address = EXCLUDED.situs_address,
         owner_name = EXCLUDED.owner_name,
+        owner_mailing_address = EXCLUDED.owner_mailing_address,
         legal_description = EXCLUDED.legal_description,
         acreage = EXCLUDED.acreage,
         land_value = EXCLUDED.land_value,
@@ -895,35 +1011,8 @@ async function main() {
       }
 
       console.log(`\n=== Importing layer: ${layer.key} ===`);
-      await client.query(`DROP TABLE IF EXISTS ${layer.stagingTable}`);
 
-      let first = true;
-      for (const source of layerSources) {
-        const ogrArgs = buildOgrArgs({
-          pgConnectionString,
-          source,
-          stagingTable: layer.stagingTable,
-          overwrite: first,
-          bbox: args.bbox
-        });
-        runCommand("ogr2ogr", ogrArgs);
-
-        if (layer.key === "oil-gas-leases") {
-          await client.query(`ALTER TABLE ${layer.stagingTable} ADD COLUMN IF NOT EXISTS source_dataset TEXT`);
-          await client.query(
-            `UPDATE ${layer.stagingTable}
-             SET source_dataset = $1
-             WHERE source_dataset IS NULL`,
-            [deriveSourceDatasetName(source)]
-          );
-        }
-
-        first = false;
-      }
-
-      let versionId = null;
-      await client.query("BEGIN");
-      try {
+      const createVersionAndClearOldData = async () => {
         const previousVersionsResult = await client.query(
           `
             SELECT id::bigint AS id
@@ -959,19 +1048,98 @@ async function main() {
             })
           ]
         );
-        versionId = Number(versionResult.rows[0].id);
+        const nextVersionId = Number(versionResult.rows[0].id);
 
         if (previousVersionIds.length > 0) {
-          await client.query(`DELETE FROM ${layer.targetTable} WHERE layer_version_id = ANY($1::bigint[])`, [previousVersionIds]);
+          if (layer.key === "parcels") {
+            // Parcel refresh is very large; truncate reuses table storage immediately
+            // and avoids running out of disk during full reloads.
+            await client.query(`TRUNCATE TABLE ${layer.targetTable}`);
+          } else {
+            await client.query(`DELETE FROM ${layer.targetTable} WHERE layer_version_id = ANY($1::bigint[])`, [previousVersionIds]);
+          }
           await client.query("DELETE FROM data_layer_versions WHERE id = ANY($1::bigint[])", [previousVersionIds]);
         }
 
-        await client.query(layer.transformSql(versionId));
+        return nextVersionId;
+      };
+
+      let versionId = null;
+
+      if (layer.key === "parcels" && layerSources.length > 1) {
+        await client.query("BEGIN");
+        try {
+          versionId = await createVersionAndClearOldData();
+          await client.query("COMMIT");
+        } catch (error) {
+          await client.query("ROLLBACK");
+          throw error;
+        }
+
+        for (const [sourceIndex, source] of layerSources.entries()) {
+          console.log(
+            `Processing parcel source ${sourceIndex + 1}/${layerSources.length}: ${path.basename(source)}`
+          );
+
+          await client.query(`DROP TABLE IF EXISTS ${layer.stagingTable}`);
+          const ogrArgs = buildOgrArgs({
+            pgConnectionString,
+            source,
+            stagingTable: layer.stagingTable,
+            overwrite: true,
+            bbox: args.bbox
+          });
+          runCommand("ogr2ogr", ogrArgs);
+
+          await client.query("BEGIN");
+          try {
+            await client.query(layer.transformSql(versionId));
+            await client.query(`DROP TABLE IF EXISTS ${layer.stagingTable}`);
+            await client.query("COMMIT");
+          } catch (error) {
+            await client.query("ROLLBACK");
+            await client.query(`DROP TABLE IF EXISTS ${layer.stagingTable}`);
+            throw error;
+          }
+        }
+      } else {
         await client.query(`DROP TABLE IF EXISTS ${layer.stagingTable}`);
-        await client.query("COMMIT");
-      } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
+
+        let first = true;
+        for (const source of layerSources) {
+          const ogrArgs = buildOgrArgs({
+            pgConnectionString,
+            source,
+            stagingTable: layer.stagingTable,
+            overwrite: first,
+            bbox: args.bbox
+          });
+          runCommand("ogr2ogr", ogrArgs);
+
+          if (layer.key === "oil-gas-leases") {
+            await client.query(`ALTER TABLE ${layer.stagingTable} ADD COLUMN IF NOT EXISTS source_dataset TEXT`);
+            await client.query(
+              `UPDATE ${layer.stagingTable}
+               SET source_dataset = $1
+               WHERE source_dataset IS NULL`,
+              [deriveSourceDatasetName(source)]
+            );
+          }
+
+          first = false;
+        }
+
+        await client.query("BEGIN");
+        try {
+          versionId = await createVersionAndClearOldData();
+          await client.query(layer.transformSql(versionId));
+          await client.query(`DROP TABLE IF EXISTS ${layer.stagingTable}`);
+          await client.query("COMMIT");
+        } catch (error) {
+          await client.query("ROLLBACK");
+          await client.query(`DROP TABLE IF EXISTS ${layer.stagingTable}`);
+          throw error;
+        }
       }
 
       const countResult = await client.query(
