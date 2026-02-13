@@ -1088,6 +1088,15 @@ export default function MapShell({
           <button className="ghost" onClick={onLogout}>
             Logout
           </button>
+          <a
+            className="partner-logo-link"
+            href="https://empower-communities.com/"
+            target="_blank"
+            rel="noreferrer noopener"
+            aria-label="Visit Empower Communities"
+          >
+            <img className="partner-logo" src="/ec-logo.svg" alt="Empower Communities" />
+          </a>
         </div>
       </header>
 
