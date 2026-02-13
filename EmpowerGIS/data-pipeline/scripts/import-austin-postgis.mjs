@@ -784,23 +784,34 @@ const IMPORT_PLAN = [
             END
           ) AS county_fips,
           COALESCE(NULLIF(props->>'county', ''), NULLIF(props->>'cnty_nm', '')) AS county_name,
-          COALESCE(
-            NULLIF(TRIM(props->>'situs_addr'), ''),
-            NULLIF(
+          CASE
+            WHEN NULLIF(
               TRIM(
                 CONCAT_WS(
                   ' ',
                   NULLIF(props->>'situs_num', ''),
-                  NULLIF(props->>'situs_st_1', ''),
-                  NULLIF(props->>'situs_st_2', ''),
-                  NULLIF(props->>'situs_city', ''),
-                  NULLIF(props->>'situs_stat', ''),
-                  NULLIF(props->>'situs_zip', '')
+                  COALESCE(NULLIF(props->>'situs_st_1', ''), NULLIF(props->>'situs_stre', '')),
+                  NULLIF(props->>'situs_st_2', '')
                 )
               ),
               ''
-            )
-          ) AS situs_address,
+            ) IS NOT NULL
+              THEN NULLIF(
+                TRIM(
+                  CONCAT_WS(
+                    ' ',
+                    NULLIF(props->>'situs_num', ''),
+                    COALESCE(NULLIF(props->>'situs_st_1', ''), NULLIF(props->>'situs_stre', '')),
+                    NULLIF(props->>'situs_st_2', ''),
+                    NULLIF(props->>'situs_city', ''),
+                    NULLIF(props->>'situs_stat', ''),
+                    NULLIF(props->>'situs_zip', '')
+                  )
+                ),
+                ''
+              )
+            ELSE NULLIF(TRIM(BOTH ', ' FROM COALESCE(props->>'situs_addr', '')), '')
+          END AS situs_address,
           NULLIF(props->>'owner_name', '') AS owner_name,
           COALESCE(
             NULLIF(TRIM(props->>'mail_addr'), ''),
