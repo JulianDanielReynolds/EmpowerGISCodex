@@ -857,7 +857,8 @@ const IMPORT_PLAN = [
               IN ('SQM', 'SQUARE_METERS', 'SQUARE METERS', 'M2')
               THEN (REPLACE(props->>'gis_area', ',', '')::double precision * 0.00024710538146717)::numeric(12,4)
             ELSE (REPLACE(props->>'gis_area', ',', '')::double precision)::numeric(12,4)
-          END AS acreage,
+          END AS acreage_raw,
+          (ST_Area(geom::geography) / 4046.8564224)::numeric(12,4) AS geom_acreage,
           CASE
             WHEN COALESCE(NULLIF(REPLACE(props->>'land_value', ',', ''), ''), '') ~
               '^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'
@@ -879,6 +880,30 @@ const IMPORT_PLAN = [
           geom
         FROM staged
       ),
+      resolved AS (
+        SELECT
+          parcel_key,
+          county_fips,
+          county_name,
+          situs_address,
+          owner_name,
+          owner_mailing_address,
+          legal_description,
+          COALESCE(
+            CASE
+              WHEN acreage_raw IS NULL THEN NULL
+              WHEN UPPER(COALESCE(county_name, '')) = 'TRAVIS'
+                THEN (acreage_raw / 10.7639104167)::numeric(12,4)
+              ELSE acreage_raw
+            END,
+            geom_acreage
+          ) AS acreage,
+          land_value,
+          improvement_value,
+          market_value,
+          geom
+        FROM normalized
+      ),
       ranked AS (
         SELECT
           *,
@@ -886,7 +911,7 @@ const IMPORT_PLAN = [
             PARTITION BY parcel_key
             ORDER BY market_value DESC NULLS LAST, acreage DESC NULLS LAST
           ) AS rn
-        FROM normalized
+        FROM resolved
       )
       INSERT INTO parcels (
         parcel_key,
