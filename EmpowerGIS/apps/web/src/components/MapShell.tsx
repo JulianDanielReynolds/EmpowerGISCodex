@@ -648,6 +648,7 @@ export default function MapShell({
   const mapRef = useRef<MapboxMap | null>(null);
   const markerRef = useRef<mapboxgl.Marker | null>(null);
   const suppressNextAutocompleteRef = useRef(false);
+  const searchRequestIdRef = useRef(0);
 
   const [layers, setLayers] = useState<LayerCatalogItem[]>([]);
   const [layerVisibility, setLayerVisibility] = useState<Record<string, boolean>>({});
@@ -660,6 +661,7 @@ export default function MapShell({
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<PropertySearchResult[]>([]);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isMeasurementActive, setIsMeasurementActive] = useState(false);
   const [measurementMode, setMeasurementMode] = useState<MeasurementMode>("distance");
@@ -787,22 +789,41 @@ export default function MapShell({
     };
   }, [layers, layerVisibility]);
 
-  const runSearch = useCallback(async (query: string) => {
+  const runSearch = useCallback(async (query: string, options?: { manual?: boolean }) => {
     const normalizedQuery = query.trim();
+    const requestId = ++searchRequestIdRef.current;
     if (!accessToken || normalizedQuery.length < 2) {
       setSearchResults([]);
       setIsSearching(false);
-      return;
+      setSearchError(null);
+      return [] as PropertySearchResult[];
     }
 
     setIsSearching(true);
+    setSearchError(null);
     try {
       const results = await searchProperties(accessToken, normalizedQuery, 8, authRequestOptions);
+      if (requestId !== searchRequestIdRef.current) {
+        return [] as PropertySearchResult[];
+      }
       setSearchResults(results);
-    } catch {
+      if (options?.manual && results.length === 0) {
+        setSearchError("No matching properties found.");
+      }
+      return results;
+    } catch (error) {
+      if (requestId !== searchRequestIdRef.current) {
+        return [] as PropertySearchResult[];
+      }
       setSearchResults([]);
+      if (options?.manual) {
+        setSearchError(error instanceof Error ? error.message : "Search is currently unavailable.");
+      }
+      return [] as PropertySearchResult[];
     } finally {
-      setIsSearching(false);
+      if (requestId === searchRequestIdRef.current) {
+        setIsSearching(false);
+      }
     }
   }, [accessToken, authRequestOptions]);
 
@@ -810,6 +831,7 @@ export default function MapShell({
     if (!accessToken) {
       setSearchResults([]);
       setIsSearching(false);
+      setSearchError(null);
       setSearchQuery("");
       setIsPropertyPanelOpen(false);
       setIsMeasurementActive(false);
@@ -827,6 +849,7 @@ export default function MapShell({
     if (normalizedQuery.length < 2) {
       setSearchResults([]);
       setIsSearching(false);
+      setSearchError(null);
       return;
     }
 
@@ -836,7 +859,7 @@ export default function MapShell({
     }
 
     const timeoutId = window.setTimeout(() => {
-      void runSearch(normalizedQuery);
+      void runSearch(normalizedQuery, { manual: false });
     }, 240);
 
     return () => {
@@ -1053,6 +1076,7 @@ export default function MapShell({
     suppressNextAutocompleteRef.current = true;
     setSearchQuery(result.address);
     setSearchResults([]);
+    setSearchError(null);
     if (mapRef.current) {
       mapRef.current.flyTo({
         center: [result.longitude, result.latitude],
@@ -1068,15 +1092,27 @@ export default function MapShell({
     if (trimmed !== searchQuery) {
       setSearchQuery(trimmed);
     }
-    void runSearch(trimmed);
-  }, [searchQuery, runSearch]);
+    if (trimmed.length < 2) {
+      setSearchError("Enter at least 2 characters to search.");
+      setSearchResults([]);
+      return;
+    }
+
+    void (async () => {
+      const results = await runSearch(trimmed, { manual: true });
+      const [firstResult] = results;
+      if (firstResult) {
+        selectSearchResult(firstResult);
+      }
+    })();
+  }, [searchQuery, runSearch, selectSearchResult]);
 
   return (
     <main className="app-layout">
       <header className="top-bar">
         <div>
           <h1>EmpowerGIS</h1>
-          <p>Austin Metro Land Intelligence</p>
+          <p>Land Intelligence</p>
         </div>
         <div className="top-bar-right">
           <span>{user?.username ?? "Unknown user"}</span>
@@ -1133,6 +1169,7 @@ export default function MapShell({
               onChange={(event) => {
                 const nextQuery = event.target.value;
                 setSearchQuery(nextQuery);
+                setSearchError(null);
                 if (nextQuery.trim().length < 2) {
                   setSearchResults([]);
                 }
@@ -1188,6 +1225,10 @@ export default function MapShell({
               </>
             ) : null}
           </div>
+
+          {searchError ? (
+            <p className="search-feedback error">{searchError}</p>
+          ) : null}
 
           {searchResults.length > 0 ? (
             <div className="search-dropdown">

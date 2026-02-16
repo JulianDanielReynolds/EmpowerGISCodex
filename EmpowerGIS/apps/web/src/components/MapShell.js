@@ -601,6 +601,7 @@ export default function MapShell({ user, accessToken, refreshToken, onSessionTok
     const mapRef = useRef(null);
     const markerRef = useRef(null);
     const suppressNextAutocompleteRef = useRef(false);
+    const searchRequestIdRef = useRef(0);
     const [layers, setLayers] = useState([]);
     const [layerVisibility, setLayerVisibility] = useState({});
     const [layersError, setLayersError] = useState(null);
@@ -610,6 +611,7 @@ export default function MapShell({ user, accessToken, refreshToken, onSessionTok
     const [isPropertyPanelOpen, setIsPropertyPanelOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState([]);
+    const [searchError, setSearchError] = useState(null);
     const [isSearching, setIsSearching] = useState(false);
     const [isMeasurementActive, setIsMeasurementActive] = useState(false);
     const [measurementMode, setMeasurementMode] = useState("distance");
@@ -719,29 +721,49 @@ export default function MapShell({ user, accessToken, refreshToken, onSessionTok
             map.off("load", syncLayers);
         };
     }, [layers, layerVisibility]);
-    const runSearch = useCallback(async (query) => {
+    const runSearch = useCallback(async (query, options) => {
         const normalizedQuery = query.trim();
+        const requestId = ++searchRequestIdRef.current;
         if (!accessToken || normalizedQuery.length < 2) {
             setSearchResults([]);
             setIsSearching(false);
-            return;
+            setSearchError(null);
+            return [];
         }
         setIsSearching(true);
+        setSearchError(null);
         try {
             const results = await searchProperties(accessToken, normalizedQuery, 8, authRequestOptions);
+            if (requestId !== searchRequestIdRef.current) {
+                return [];
+            }
             setSearchResults(results);
+            if (options?.manual && results.length === 0) {
+                setSearchError("No matching properties found.");
+            }
+            return results;
         }
-        catch {
+        catch (error) {
+            if (requestId !== searchRequestIdRef.current) {
+                return [];
+            }
             setSearchResults([]);
+            if (options?.manual) {
+                setSearchError(error instanceof Error ? error.message : "Search is currently unavailable.");
+            }
+            return [];
         }
         finally {
-            setIsSearching(false);
+            if (requestId === searchRequestIdRef.current) {
+                setIsSearching(false);
+            }
         }
     }, [accessToken, authRequestOptions]);
     useEffect(() => {
         if (!accessToken) {
             setSearchResults([]);
             setIsSearching(false);
+            setSearchError(null);
             setSearchQuery("");
             setIsPropertyPanelOpen(false);
             setIsMeasurementActive(false);
@@ -758,6 +780,7 @@ export default function MapShell({ user, accessToken, refreshToken, onSessionTok
         if (normalizedQuery.length < 2) {
             setSearchResults([]);
             setIsSearching(false);
+            setSearchError(null);
             return;
         }
         if (suppressNextAutocompleteRef.current) {
@@ -765,7 +788,7 @@ export default function MapShell({ user, accessToken, refreshToken, onSessionTok
             return;
         }
         const timeoutId = window.setTimeout(() => {
-            void runSearch(normalizedQuery);
+            void runSearch(normalizedQuery, { manual: false });
         }, 240);
         return () => {
             window.clearTimeout(timeoutId);
@@ -952,6 +975,7 @@ export default function MapShell({ user, accessToken, refreshToken, onSessionTok
         suppressNextAutocompleteRef.current = true;
         setSearchQuery(result.address);
         setSearchResults([]);
+        setSearchError(null);
         if (mapRef.current) {
             mapRef.current.flyTo({
                 center: [result.longitude, result.latitude],
@@ -966,14 +990,26 @@ export default function MapShell({ user, accessToken, refreshToken, onSessionTok
         if (trimmed !== searchQuery) {
             setSearchQuery(trimmed);
         }
-        void runSearch(trimmed);
-    }, [searchQuery, runSearch]);
-    return (_jsxs("main", { className: "app-layout", children: [_jsxs("header", { className: "top-bar", children: [_jsxs("div", { children: [_jsx("h1", { children: "EmpowerGIS" }), _jsx("p", { children: "Austin Metro Land Intelligence" })] }), _jsxs("div", { className: "top-bar-right", children: [_jsx("span", { children: user?.username ?? "Unknown user" }), onOpenAdmin ? (_jsx("button", { className: "ghost", onClick: onOpenAdmin, children: "Admin" })) : null, _jsx("button", { className: "ghost", onClick: onLogout, children: "Logout" }), _jsx("a", { className: "partner-logo-link", href: "https://empower-communities.com/", target: "_blank", rel: "noreferrer noopener", "aria-label": "Visit Empower Communities", children: _jsx("img", { className: "partner-logo", src: "/ec-logo.svg", alt: "Empower Communities" }) })] })] }), _jsxs("section", { className: `content${shouldShowPropertyPanel ? " has-property-panel" : ""}`, children: [_jsxs("aside", { className: "panel", children: [_jsxs("h2", { children: ["Layers (", activeLayerCount, ")"] }), layersError ? _jsx("p", { className: "error", children: layersError }) : null, _jsx("ul", { children: layers.map((layer) => (_jsx("li", { children: _jsxs("label", { children: [_jsx("input", { type: "checkbox", checked: Boolean(layerVisibility[layer.key]), disabled: layer.status !== "ready", onChange: (event) => setLayerVisibility((current) => ({
+        if (trimmed.length < 2) {
+            setSearchError("Enter at least 2 characters to search.");
+            setSearchResults([]);
+            return;
+        }
+        void (async () => {
+            const results = await runSearch(trimmed, { manual: true });
+            const [firstResult] = results;
+            if (firstResult) {
+                selectSearchResult(firstResult);
+            }
+        })();
+    }, [searchQuery, runSearch, selectSearchResult]);
+    return (_jsxs("main", { className: "app-layout", children: [_jsxs("header", { className: "top-bar", children: [_jsxs("div", { children: [_jsx("h1", { children: "EmpowerGIS" }), _jsx("p", { children: "Land Intelligence" })] }), _jsxs("div", { className: "top-bar-right", children: [_jsx("span", { children: user?.username ?? "Unknown user" }), onOpenAdmin ? (_jsx("button", { className: "ghost", onClick: onOpenAdmin, children: "Admin" })) : null, _jsx("button", { className: "ghost", onClick: onLogout, children: "Logout" }), _jsx("a", { className: "partner-logo-link", href: "https://empower-communities.com/", target: "_blank", rel: "noreferrer noopener", "aria-label": "Visit Empower Communities", children: _jsx("img", { className: "partner-logo", src: "/ec-logo.svg", alt: "Empower Communities" }) })] })] }), _jsxs("section", { className: `content${shouldShowPropertyPanel ? " has-property-panel" : ""}`, children: [_jsxs("aside", { className: "panel", children: [_jsxs("h2", { children: ["Layers (", activeLayerCount, ")"] }), layersError ? _jsx("p", { className: "error", children: layersError }) : null, _jsx("ul", { children: layers.map((layer) => (_jsx("li", { children: _jsxs("label", { children: [_jsx("input", { type: "checkbox", checked: Boolean(layerVisibility[layer.key]), disabled: layer.status !== "ready", onChange: (event) => setLayerVisibility((current) => ({
                                                     ...current,
                                                     [layer.key]: event.target.checked
                                                 })) }), _jsx("span", { children: layer.name })] }) }, layer.key))) })] }), _jsxs("section", { className: "map-stage", children: [_jsxs("div", { className: "map-toolbar", children: [_jsx("input", { value: searchQuery, onChange: (event) => {
                                             const nextQuery = event.target.value;
                                             setSearchQuery(nextQuery);
+                                            setSearchError(null);
                                             if (nextQuery.trim().length < 2) {
                                                 setSearchResults([]);
                                             }
@@ -995,5 +1031,5 @@ export default function MapShell({ user, accessToken, refreshToken, onSessionTok
                                                     setMeasurementMode(nextMode);
                                                     setMeasurementPoints([]);
                                                     setMeasurementValue(nextMode === "distance" ? "0 ft" : "0 acres");
-                                                }, children: [_jsx("option", { value: "distance", children: "Linear Feet" }), _jsx("option", { value: "area", children: "Acres" })] }), _jsx("span", { className: "measure-value", children: measurementValue }), _jsx("button", { className: "ghost measure-clear", type: "button", onClick: clearMeasurement, children: "Clear" }), _jsx("button", { className: "ghost measure-close", type: "button", onClick: closeMeasurement, children: "Done" })] })) : null] }), searchResults.length > 0 ? (_jsx("div", { className: "search-dropdown", children: searchResults.map((result) => (_jsxs("button", { type: "button", className: "search-result", onClick: () => selectSearchResult(result), children: [_jsx("strong", { children: result.address }), _jsx("span", { children: result.parcelKey })] }, `${result.parcelKey}-${result.longitude}-${result.latitude}`))) })) : null, _jsx("div", { className: "map-canvas", children: canRenderMap ? (_jsx("div", { ref: mapContainerRef, className: "mapbox-host" })) : (_jsx("p", { children: "Set a valid `VITE_MAPBOX_ACCESS_TOKEN` in the web env file to enable the interactive map." })) })] }), shouldShowPropertyPanel ? (_jsxs("aside", { className: "panel", children: [_jsxs("div", { className: "panel-header", children: [_jsx("h2", { children: "Property Data" }), _jsx("button", { type: "button", className: "ghost panel-close", onClick: () => setIsPropertyPanelOpen(false), children: "Close" })] }), isLoadingProperty ? _jsx("p", { children: "Loading parcel data..." }) : null, propertyError ? _jsx("p", { className: "error", children: propertyError }) : null, _jsx("table", { children: _jsxs("tbody", { children: [_jsxs("tr", { children: [_jsx("th", { children: "Address" }), _jsx("td", { children: selectedProperty?.address ?? "Click a parcel on the map" })] }), _jsxs("tr", { children: [_jsx("th", { children: "Parcel Key" }), _jsx("td", { children: selectedProperty?.parcelKey ?? "N/A" })] }), _jsxs("tr", { children: [_jsx("th", { children: "Owner" }), _jsxs("td", { children: [_jsx("div", { children: selectedProperty?.ownerName ?? "N/A" }), _jsx("div", { className: "owner-address", children: selectedProperty?.ownerAddress?.trim() || "Owner mailing address unavailable" })] })] }), _jsxs("tr", { children: [_jsx("th", { children: "Acreage" }), _jsx("td", { children: selectedProperty?.acreage ?? "N/A" })] }), _jsxs("tr", { children: [_jsx("th", { children: "Zoning" }), _jsx("td", { children: selectedProperty?.zoning ?? "N/A" })] })] }) })] })) : null] })] }));
+                                                }, children: [_jsx("option", { value: "distance", children: "Linear Feet" }), _jsx("option", { value: "area", children: "Acres" })] }), _jsx("span", { className: "measure-value", children: measurementValue }), _jsx("button", { className: "ghost measure-clear", type: "button", onClick: clearMeasurement, children: "Clear" }), _jsx("button", { className: "ghost measure-close", type: "button", onClick: closeMeasurement, children: "Done" })] })) : null] }), searchError ? (_jsx("p", { className: "search-feedback error", children: searchError })) : null, searchResults.length > 0 ? (_jsx("div", { className: "search-dropdown", children: searchResults.map((result) => (_jsxs("button", { type: "button", className: "search-result", onClick: () => selectSearchResult(result), children: [_jsx("strong", { children: result.address }), _jsx("span", { children: result.parcelKey })] }, `${result.parcelKey}-${result.longitude}-${result.latitude}`))) })) : null, _jsx("div", { className: "map-canvas", children: canRenderMap ? (_jsx("div", { ref: mapContainerRef, className: "mapbox-host" })) : (_jsx("p", { children: "Set a valid `VITE_MAPBOX_ACCESS_TOKEN` in the web env file to enable the interactive map." })) })] }), shouldShowPropertyPanel ? (_jsxs("aside", { className: "panel", children: [_jsxs("div", { className: "panel-header", children: [_jsx("h2", { children: "Property Data" }), _jsx("button", { type: "button", className: "ghost panel-close", onClick: () => setIsPropertyPanelOpen(false), children: "Close" })] }), isLoadingProperty ? _jsx("p", { children: "Loading parcel data..." }) : null, propertyError ? _jsx("p", { className: "error", children: propertyError }) : null, _jsx("table", { children: _jsxs("tbody", { children: [_jsxs("tr", { children: [_jsx("th", { children: "Address" }), _jsx("td", { children: selectedProperty?.address ?? "Click a parcel on the map" })] }), _jsxs("tr", { children: [_jsx("th", { children: "Parcel Key" }), _jsx("td", { children: selectedProperty?.parcelKey ?? "N/A" })] }), _jsxs("tr", { children: [_jsx("th", { children: "Owner" }), _jsxs("td", { children: [_jsx("div", { children: selectedProperty?.ownerName ?? "N/A" }), _jsx("div", { className: "owner-address", children: selectedProperty?.ownerAddress?.trim() || "Owner mailing address unavailable" })] })] }), _jsxs("tr", { children: [_jsx("th", { children: "Acreage" }), _jsx("td", { children: selectedProperty?.acreage ?? "N/A" })] }), _jsxs("tr", { children: [_jsx("th", { children: "Zoning" }), _jsx("td", { children: selectedProperty?.zoning ?? "N/A" })] })] }) })] })) : null] })] }));
 }
