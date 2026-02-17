@@ -398,7 +398,6 @@ propertiesRouter.get(
       (token, index) => !(index === 0 && /^\d+[a-z]?$/i.test(token))
     );
 
-    const wildcard = `%${rawQuery}%`;
     const prefix = `${rawQuery}%`;
     const normalizedWildcard = `%${normalizedQuery}%`;
     const tokenWildcard =
@@ -425,7 +424,7 @@ propertiesRouter.get(
               LOWER(REGEXP_REPLACE(COALESCE(p.owner_name, ''), '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_owner,
               LOWER(REGEXP_REPLACE(p.parcel_key, '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_parcel_key
             FROM parcels p
-            WHERE LOWER(REGEXP_REPLACE(COALESCE(p.situs_address, ''), '[^A-Za-z0-9]+', ' ', 'g')) = $6
+            WHERE LOWER(REGEXP_REPLACE(COALESCE(p.situs_address, ''), '[^A-Za-z0-9]+', ' ', 'g')) = $5
             LIMIT 120
           )
           UNION ALL
@@ -444,7 +443,7 @@ propertiesRouter.get(
               LOWER(REGEXP_REPLACE(COALESCE(p.owner_name, ''), '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_owner,
               LOWER(REGEXP_REPLACE(p.parcel_key, '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_parcel_key
             FROM parcels p
-            WHERE LOWER(REGEXP_REPLACE(COALESCE(p.situs_address, ''), '[^A-Za-z0-9]+', ' ', 'g')) LIKE $7
+            WHERE LOWER(REGEXP_REPLACE(COALESCE(p.situs_address, ''), '[^A-Za-z0-9]+', ' ', 'g')) LIKE $6
             LIMIT 220
           )
           UNION ALL
@@ -464,9 +463,9 @@ propertiesRouter.get(
               LOWER(REGEXP_REPLACE(p.parcel_key, '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_parcel_key
             FROM parcels p
             WHERE
-              LOWER(REGEXP_REPLACE(COALESCE(p.situs_address, ''), '[^A-Za-z0-9]+', ' ', 'g')) ILIKE $3
-              OR LOWER(REGEXP_REPLACE(COALESCE(p.situs_address, ''), '[^A-Za-z0-9]+', ' ', 'g')) ILIKE $4
-              OR LOWER(REGEXP_REPLACE(COALESCE(p.situs_address, ''), '[^A-Za-z0-9]+', ' ', 'g')) ILIKE $8
+              LOWER(REGEXP_REPLACE(COALESCE(p.situs_address, ''), '[^A-Za-z0-9]+', ' ', 'g')) ILIKE $2
+              OR LOWER(REGEXP_REPLACE(COALESCE(p.situs_address, ''), '[^A-Za-z0-9]+', ' ', 'g')) ILIKE $3
+              OR LOWER(REGEXP_REPLACE(COALESCE(p.situs_address, ''), '[^A-Za-z0-9]+', ' ', 'g')) ILIKE $7
             LIMIT 720
           )
           UNION ALL
@@ -485,7 +484,7 @@ propertiesRouter.get(
               LOWER(REGEXP_REPLACE(COALESCE(p.owner_name, ''), '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_owner,
               LOWER(REGEXP_REPLACE(p.parcel_key, '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_parcel_key
             FROM parcels p
-            WHERE LOWER(REGEXP_REPLACE(COALESCE(p.owner_name, ''), '[^A-Za-z0-9]+', ' ', 'g')) ILIKE $3
+            WHERE LOWER(REGEXP_REPLACE(COALESCE(p.owner_name, ''), '[^A-Za-z0-9]+', ' ', 'g')) ILIKE $2
             LIMIT 360
           )
           UNION ALL
@@ -504,7 +503,7 @@ propertiesRouter.get(
               LOWER(REGEXP_REPLACE(COALESCE(p.owner_name, ''), '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_owner,
               LOWER(REGEXP_REPLACE(p.parcel_key, '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_parcel_key
             FROM parcels p
-            WHERE LOWER(REGEXP_REPLACE(p.parcel_key, '[^A-Za-z0-9]+', ' ', 'g')) LIKE $7
+            WHERE LOWER(REGEXP_REPLACE(p.parcel_key, '[^A-Za-z0-9]+', ' ', 'g')) LIKE $6
             LIMIT 220
           )
           UNION ALL
@@ -523,7 +522,7 @@ propertiesRouter.get(
               LOWER(REGEXP_REPLACE(COALESCE(p.owner_name, ''), '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_owner,
               LOWER(REGEXP_REPLACE(p.parcel_key, '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_parcel_key
             FROM parcels p
-            WHERE LOWER(REGEXP_REPLACE(p.parcel_key, '[^A-Za-z0-9]+', ' ', 'g')) ILIKE $3
+            WHERE LOWER(REGEXP_REPLACE(p.parcel_key, '[^A-Za-z0-9]+', ' ', 'g')) ILIKE $2
             LIMIT 220
           )
         ),
@@ -558,25 +557,25 @@ propertiesRouter.get(
             parcel_key AS dedupe_key,
             0::int AS source_rank,
             CASE
-              WHEN normalized_address = $6 THEN 0
-              WHEN normalized_address LIKE $7 THEN 1
-              WHEN normalized_parcel_key LIKE $7 THEN 2
-              WHEN situs_address ILIKE $2 THEN 3
-              WHEN normalized_address ILIKE $3 THEN 4
-              WHEN normalized_address ILIKE $8 THEN 5
-              WHEN normalized_address ILIKE $4 THEN 6
-              WHEN normalized_parcel_key ILIKE $3 THEN 7
-              WHEN owner_name ILIKE $2 OR normalized_owner ILIKE $3 THEN 8
+              WHEN normalized_address = $5 THEN 0
+              WHEN normalized_address LIKE $6 THEN 1
+              WHEN normalized_parcel_key LIKE $6 THEN 2
+              WHEN situs_address ILIKE $1 THEN 3
+              WHEN normalized_address ILIKE $2 THEN 4
+              WHEN normalized_address ILIKE $7 THEN 5
+              WHEN normalized_address ILIKE $3 THEN 6
+              WHEN normalized_parcel_key ILIKE $2 THEN 7
+              WHEN owner_name ILIKE $1 OR normalized_owner ILIKE $2 THEN 8
               ELSE 9
             END AS relevance_bucket,
             (
-              CASE WHEN normalized_address = $6 THEN 10 ELSE 0 END +
-              CASE WHEN normalized_address LIKE $7 THEN 7 ELSE 0 END +
-              CASE WHEN normalized_address ILIKE $3 THEN 4 ELSE 0 END +
-              CASE WHEN normalized_address ILIKE $8 THEN 3 ELSE 0 END +
-              CASE WHEN normalized_address ILIKE $4 THEN 3 ELSE 0 END +
-              CASE WHEN normalized_parcel_key ILIKE $3 THEN 2 ELSE 0 END +
-              CASE WHEN normalized_owner ILIKE $3 THEN 1 ELSE 0 END
+              CASE WHEN normalized_address = $5 THEN 10 ELSE 0 END +
+              CASE WHEN normalized_address LIKE $6 THEN 7 ELSE 0 END +
+              CASE WHEN normalized_address ILIKE $2 THEN 4 ELSE 0 END +
+              CASE WHEN normalized_address ILIKE $7 THEN 3 ELSE 0 END +
+              CASE WHEN normalized_address ILIKE $3 THEN 3 ELSE 0 END +
+              CASE WHEN normalized_parcel_key ILIKE $2 THEN 2 ELSE 0 END +
+              CASE WHEN normalized_owner ILIKE $2 THEN 1 ELSE 0 END
             ) AS relevance_score
           FROM parcel_prepared
         ),
@@ -589,7 +588,7 @@ propertiesRouter.get(
               ap.county_name,
               ap.geom
             FROM address_points ap
-            WHERE ap.normalized_address = $6
+            WHERE ap.normalized_address = $5
             LIMIT 120
           )
           UNION ALL
@@ -601,7 +600,7 @@ propertiesRouter.get(
               ap.county_name,
               ap.geom
             FROM address_points ap
-            WHERE ap.normalized_address LIKE $7
+            WHERE ap.normalized_address LIKE $6
             LIMIT 220
           )
           UNION ALL
@@ -614,9 +613,9 @@ propertiesRouter.get(
               ap.geom
             FROM address_points ap
             WHERE
-              ap.normalized_address ILIKE $3
-              OR ap.normalized_address ILIKE $4
-              OR ap.normalized_address ILIKE $8
+              ap.normalized_address ILIKE $2
+              OR ap.normalized_address ILIKE $3
+              OR ap.normalized_address ILIKE $7
             LIMIT 900
           )
         ),
@@ -653,20 +652,20 @@ propertiesRouter.get(
             COALESCE(p.parcel_key, CONCAT('ADDR-', ap.address_point_id::text)) AS dedupe_key,
             1::int AS source_rank,
             CASE
-              WHEN ap.normalized_address = $6 THEN 0
-              WHEN ap.normalized_address LIKE $7 THEN 1
-              WHEN ap.address_label ILIKE $2 THEN 2
-              WHEN ap.normalized_address ILIKE $3 THEN 3
-              WHEN ap.normalized_address ILIKE $8 THEN 4
-              WHEN ap.normalized_address ILIKE $4 THEN 5
+              WHEN ap.normalized_address = $5 THEN 0
+              WHEN ap.normalized_address LIKE $6 THEN 1
+              WHEN ap.address_label ILIKE $1 THEN 2
+              WHEN ap.normalized_address ILIKE $2 THEN 3
+              WHEN ap.normalized_address ILIKE $7 THEN 4
+              WHEN ap.normalized_address ILIKE $3 THEN 5
               ELSE 6
             END AS relevance_bucket,
             (
-              CASE WHEN ap.normalized_address = $6 THEN 10 ELSE 0 END +
-              CASE WHEN ap.normalized_address LIKE $7 THEN 7 ELSE 0 END +
-              CASE WHEN ap.normalized_address ILIKE $3 THEN 4 ELSE 0 END +
-              CASE WHEN ap.normalized_address ILIKE $8 THEN 3 ELSE 0 END +
-              CASE WHEN ap.normalized_address ILIKE $4 THEN 2 ELSE 0 END
+              CASE WHEN ap.normalized_address = $5 THEN 10 ELSE 0 END +
+              CASE WHEN ap.normalized_address LIKE $6 THEN 7 ELSE 0 END +
+              CASE WHEN ap.normalized_address ILIKE $2 THEN 4 ELSE 0 END +
+              CASE WHEN ap.normalized_address ILIKE $7 THEN 3 ELSE 0 END +
+              CASE WHEN ap.normalized_address ILIKE $3 THEN 2 ELSE 0 END
             ) AS relevance_score
           FROM address_candidates ap
           LEFT JOIN LATERAL (
@@ -722,9 +721,9 @@ propertiesRouter.get(
           source_rank ASC,
           market_value DESC NULLS LAST,
           parcel_key ASC
-        LIMIT $5
+        LIMIT $4
       `,
-      [wildcard, prefix, normalizedWildcard, tokenWildcard, parsed.data.limit, normalizedQuery, normalizedPrefix, streetOnlyWildcard]
+      [prefix, normalizedWildcard, tokenWildcard, parsed.data.limit, normalizedQuery, normalizedPrefix, streetOnlyWildcard]
     );
 
     await logUserActivity(
