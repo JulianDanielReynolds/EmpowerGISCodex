@@ -51,6 +51,10 @@ function parseParcelKey(value: unknown): string | null {
   return null;
 }
 
+function isAddressOnlyParcelKey(value: string | null | undefined): boolean {
+  return typeof value === "string" && value.startsWith("ADDR-");
+}
+
 function toRadians(value: number): number {
   return (value * Math.PI) / 180;
 }
@@ -1083,6 +1087,14 @@ export default function MapShell({
         zoom: 16.2,
         duration: 1100
       });
+    }
+    if (isAddressOnlyParcelKey(result.parcelKey)) {
+      setMarkerAt(result.longitude, result.latitude);
+      setSelectedProperty(null);
+      setPropertyError(null);
+      setIsPropertyPanelOpen(false);
+      setSearchError("Address found, but parcel details are unavailable at this location.");
+      return;
     }
     void loadPropertyAt(result.longitude, result.latitude);
   };

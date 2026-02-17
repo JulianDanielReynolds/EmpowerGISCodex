@@ -394,31 +394,155 @@ propertiesRouter.get(
       .filter((token) => token.length >= 2);
     const primaryTokens = normalizedTokens.filter((token) => !stopWords.has(token));
     const tokenPatternSeed = primaryTokens.length > 0 ? primaryTokens : normalizedTokens;
+    const streetOnlyTokenSeed = tokenPatternSeed.filter(
+      (token, index) => !(index === 0 && /^\d+[a-z]?$/i.test(token))
+    );
 
     const wildcard = `%${rawQuery}%`;
     const prefix = `${rawQuery}%`;
     const normalizedWildcard = `%${normalizedQuery}%`;
     const tokenWildcard =
       tokenPatternSeed.length > 0 ? `%${tokenPatternSeed.slice(0, 5).join("%")}%` : normalizedWildcard;
+    const streetOnlyWildcard =
+      streetOnlyTokenSeed.length > 0 ? `%${streetOnlyTokenSeed.slice(0, 5).join("%")}%` : normalizedWildcard;
     const normalizedPrefix = `${normalizedQuery}%`;
 
     const result = await pool.query(
       `
-        WITH parcel_prepared AS (
-          SELECT
+        WITH parcel_seed AS MATERIALIZED (
+          (
+            SELECT
+              p.parcel_key,
+              p.situs_address,
+              p.owner_name,
+              p.county_name,
+              p.acreage,
+              p.market_value,
+              COALESCE(NULLIF(p.zoning_code, ''), 'Not mapped') AS zoning_code,
+              ST_X(ST_PointOnSurface(p.geom)) AS longitude,
+              ST_Y(ST_PointOnSurface(p.geom)) AS latitude,
+              LOWER(REGEXP_REPLACE(COALESCE(p.situs_address, ''), '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_address,
+              LOWER(REGEXP_REPLACE(COALESCE(p.owner_name, ''), '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_owner,
+              LOWER(REGEXP_REPLACE(p.parcel_key, '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_parcel_key
+            FROM parcels p
+            WHERE LOWER(REGEXP_REPLACE(COALESCE(p.situs_address, ''), '[^A-Za-z0-9]+', ' ', 'g')) = $6
+            LIMIT 120
+          )
+          UNION ALL
+          (
+            SELECT
+              p.parcel_key,
+              p.situs_address,
+              p.owner_name,
+              p.county_name,
+              p.acreage,
+              p.market_value,
+              COALESCE(NULLIF(p.zoning_code, ''), 'Not mapped') AS zoning_code,
+              ST_X(ST_PointOnSurface(p.geom)) AS longitude,
+              ST_Y(ST_PointOnSurface(p.geom)) AS latitude,
+              LOWER(REGEXP_REPLACE(COALESCE(p.situs_address, ''), '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_address,
+              LOWER(REGEXP_REPLACE(COALESCE(p.owner_name, ''), '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_owner,
+              LOWER(REGEXP_REPLACE(p.parcel_key, '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_parcel_key
+            FROM parcels p
+            WHERE LOWER(REGEXP_REPLACE(COALESCE(p.situs_address, ''), '[^A-Za-z0-9]+', ' ', 'g')) LIKE $7
+            LIMIT 220
+          )
+          UNION ALL
+          (
+            SELECT
+              p.parcel_key,
+              p.situs_address,
+              p.owner_name,
+              p.county_name,
+              p.acreage,
+              p.market_value,
+              COALESCE(NULLIF(p.zoning_code, ''), 'Not mapped') AS zoning_code,
+              ST_X(ST_PointOnSurface(p.geom)) AS longitude,
+              ST_Y(ST_PointOnSurface(p.geom)) AS latitude,
+              LOWER(REGEXP_REPLACE(COALESCE(p.situs_address, ''), '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_address,
+              LOWER(REGEXP_REPLACE(COALESCE(p.owner_name, ''), '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_owner,
+              LOWER(REGEXP_REPLACE(p.parcel_key, '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_parcel_key
+            FROM parcels p
+            WHERE
+              LOWER(REGEXP_REPLACE(COALESCE(p.situs_address, ''), '[^A-Za-z0-9]+', ' ', 'g')) ILIKE $3
+              OR LOWER(REGEXP_REPLACE(COALESCE(p.situs_address, ''), '[^A-Za-z0-9]+', ' ', 'g')) ILIKE $4
+              OR LOWER(REGEXP_REPLACE(COALESCE(p.situs_address, ''), '[^A-Za-z0-9]+', ' ', 'g')) ILIKE $8
+            LIMIT 720
+          )
+          UNION ALL
+          (
+            SELECT
+              p.parcel_key,
+              p.situs_address,
+              p.owner_name,
+              p.county_name,
+              p.acreage,
+              p.market_value,
+              COALESCE(NULLIF(p.zoning_code, ''), 'Not mapped') AS zoning_code,
+              ST_X(ST_PointOnSurface(p.geom)) AS longitude,
+              ST_Y(ST_PointOnSurface(p.geom)) AS latitude,
+              LOWER(REGEXP_REPLACE(COALESCE(p.situs_address, ''), '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_address,
+              LOWER(REGEXP_REPLACE(COALESCE(p.owner_name, ''), '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_owner,
+              LOWER(REGEXP_REPLACE(p.parcel_key, '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_parcel_key
+            FROM parcels p
+            WHERE LOWER(REGEXP_REPLACE(COALESCE(p.owner_name, ''), '[^A-Za-z0-9]+', ' ', 'g')) ILIKE $3
+            LIMIT 360
+          )
+          UNION ALL
+          (
+            SELECT
+              p.parcel_key,
+              p.situs_address,
+              p.owner_name,
+              p.county_name,
+              p.acreage,
+              p.market_value,
+              COALESCE(NULLIF(p.zoning_code, ''), 'Not mapped') AS zoning_code,
+              ST_X(ST_PointOnSurface(p.geom)) AS longitude,
+              ST_Y(ST_PointOnSurface(p.geom)) AS latitude,
+              LOWER(REGEXP_REPLACE(COALESCE(p.situs_address, ''), '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_address,
+              LOWER(REGEXP_REPLACE(COALESCE(p.owner_name, ''), '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_owner,
+              LOWER(REGEXP_REPLACE(p.parcel_key, '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_parcel_key
+            FROM parcels p
+            WHERE LOWER(REGEXP_REPLACE(p.parcel_key, '[^A-Za-z0-9]+', ' ', 'g')) LIKE $7
+            LIMIT 220
+          )
+          UNION ALL
+          (
+            SELECT
+              p.parcel_key,
+              p.situs_address,
+              p.owner_name,
+              p.county_name,
+              p.acreage,
+              p.market_value,
+              COALESCE(NULLIF(p.zoning_code, ''), 'Not mapped') AS zoning_code,
+              ST_X(ST_PointOnSurface(p.geom)) AS longitude,
+              ST_Y(ST_PointOnSurface(p.geom)) AS latitude,
+              LOWER(REGEXP_REPLACE(COALESCE(p.situs_address, ''), '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_address,
+              LOWER(REGEXP_REPLACE(COALESCE(p.owner_name, ''), '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_owner,
+              LOWER(REGEXP_REPLACE(p.parcel_key, '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_parcel_key
+            FROM parcels p
+            WHERE LOWER(REGEXP_REPLACE(p.parcel_key, '[^A-Za-z0-9]+', ' ', 'g')) ILIKE $3
+            LIMIT 220
+          )
+        ),
+        parcel_prepared AS (
+          SELECT DISTINCT ON (parcel_key)
             parcel_key,
             situs_address,
             owner_name,
             county_name,
             acreage,
             market_value,
-            COALESCE(NULLIF(zoning_code, ''), 'Not mapped') AS zoning_code,
-            ST_X(ST_PointOnSurface(geom)) AS longitude,
-            ST_Y(ST_PointOnSurface(geom)) AS latitude,
-            LOWER(REGEXP_REPLACE(COALESCE(situs_address, ''), '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_address,
-            LOWER(REGEXP_REPLACE(COALESCE(owner_name, ''), '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_owner,
-            LOWER(REGEXP_REPLACE(parcel_key, '[^A-Za-z0-9]+', ' ', 'g')) AS normalized_parcel_key
-          FROM parcels
+            zoning_code,
+            longitude,
+            latitude,
+            normalized_address,
+            normalized_owner,
+            normalized_parcel_key
+          FROM parcel_seed
+          ORDER BY parcel_key, market_value DESC NULLS LAST
         ),
         parcel_ranked AS (
           SELECT
@@ -431,39 +555,93 @@ propertiesRouter.get(
             zoning_code,
             longitude,
             latitude,
+            parcel_key AS dedupe_key,
             0::int AS source_rank,
             CASE
               WHEN normalized_address = $6 THEN 0
               WHEN normalized_address LIKE $7 THEN 1
-              WHEN parcel_key ILIKE $2 THEN 2
+              WHEN normalized_parcel_key LIKE $7 THEN 2
               WHEN situs_address ILIKE $2 THEN 3
               WHEN normalized_address ILIKE $3 THEN 4
-              WHEN normalized_address ILIKE $4 THEN 5
-              WHEN normalized_parcel_key ILIKE $3 THEN 6
-              WHEN owner_name ILIKE $2 OR normalized_owner ILIKE $3 THEN 7
-              ELSE 8
+              WHEN normalized_address ILIKE $8 THEN 5
+              WHEN normalized_address ILIKE $4 THEN 6
+              WHEN normalized_parcel_key ILIKE $3 THEN 7
+              WHEN owner_name ILIKE $2 OR normalized_owner ILIKE $3 THEN 8
+              ELSE 9
             END AS relevance_bucket,
             (
               CASE WHEN normalized_address = $6 THEN 10 ELSE 0 END +
               CASE WHEN normalized_address LIKE $7 THEN 7 ELSE 0 END +
               CASE WHEN normalized_address ILIKE $3 THEN 4 ELSE 0 END +
+              CASE WHEN normalized_address ILIKE $8 THEN 3 ELSE 0 END +
               CASE WHEN normalized_address ILIKE $4 THEN 3 ELSE 0 END +
               CASE WHEN normalized_parcel_key ILIKE $3 THEN 2 ELSE 0 END +
               CASE WHEN normalized_owner ILIKE $3 THEN 1 ELSE 0 END
             ) AS relevance_score
           FROM parcel_prepared
-          WHERE
-            parcel_key ILIKE $1
-            OR situs_address ILIKE $1
-            OR owner_name ILIKE $1
-            OR normalized_address ILIKE $3
-            OR normalized_address ILIKE $4
-            OR normalized_parcel_key ILIKE $3
-            OR normalized_owner ILIKE $3
+        ),
+        address_seed AS MATERIALIZED (
+          (
+            SELECT
+              ap.id AS address_point_id,
+              ap.address_label,
+              ap.normalized_address,
+              ap.county_name,
+              ap.geom
+            FROM address_points ap
+            WHERE ap.normalized_address = $6
+            LIMIT 120
+          )
+          UNION ALL
+          (
+            SELECT
+              ap.id AS address_point_id,
+              ap.address_label,
+              ap.normalized_address,
+              ap.county_name,
+              ap.geom
+            FROM address_points ap
+            WHERE ap.normalized_address LIKE $7
+            LIMIT 220
+          )
+          UNION ALL
+          (
+            SELECT
+              ap.id AS address_point_id,
+              ap.address_label,
+              ap.normalized_address,
+              ap.county_name,
+              ap.geom
+            FROM address_points ap
+            WHERE
+              ap.normalized_address ILIKE $3
+              OR ap.normalized_address ILIKE $4
+              OR ap.normalized_address ILIKE $8
+            LIMIT 900
+          )
+        ),
+        address_candidates AS (
+          SELECT DISTINCT ON (
+            normalized_address,
+            COALESCE(county_name, ''),
+            ST_X(geom),
+            ST_Y(geom)
+          )
+            address_point_id,
+            address_label,
+            normalized_address,
+            county_name,
+            geom
+          FROM address_seed
+          ORDER BY
+            normalized_address,
+            COALESCE(county_name, ''),
+            ST_X(geom),
+            ST_Y(geom)
         ),
         address_ranked AS (
           SELECT
-            p.parcel_key,
+            COALESCE(p.parcel_key, CONCAT('ADDR-', ap.address_point_id::text)) AS parcel_key,
             COALESCE(NULLIF(ap.address_label, ''), NULLIF(p.situs_address, ''), 'Address unavailable') AS situs_address,
             COALESCE(NULLIF(p.owner_name, ''), 'Unknown') AS owner_name,
             COALESCE(NULLIF(p.county_name, ''), NULLIF(ap.county_name, ''), 'Unknown') AS county_name,
@@ -472,23 +650,26 @@ propertiesRouter.get(
             COALESCE(NULLIF(p.zoning_code, ''), 'Not mapped') AS zoning_code,
             ST_X(ap.geom) AS longitude,
             ST_Y(ap.geom) AS latitude,
+            COALESCE(p.parcel_key, CONCAT('ADDR-', ap.address_point_id::text)) AS dedupe_key,
             1::int AS source_rank,
             CASE
               WHEN ap.normalized_address = $6 THEN 0
               WHEN ap.normalized_address LIKE $7 THEN 1
               WHEN ap.address_label ILIKE $2 THEN 2
               WHEN ap.normalized_address ILIKE $3 THEN 3
-              WHEN ap.normalized_address ILIKE $4 THEN 4
-              ELSE 5
+              WHEN ap.normalized_address ILIKE $8 THEN 4
+              WHEN ap.normalized_address ILIKE $4 THEN 5
+              ELSE 6
             END AS relevance_bucket,
             (
               CASE WHEN ap.normalized_address = $6 THEN 10 ELSE 0 END +
               CASE WHEN ap.normalized_address LIKE $7 THEN 7 ELSE 0 END +
               CASE WHEN ap.normalized_address ILIKE $3 THEN 4 ELSE 0 END +
+              CASE WHEN ap.normalized_address ILIKE $8 THEN 3 ELSE 0 END +
               CASE WHEN ap.normalized_address ILIKE $4 THEN 2 ELSE 0 END
             ) AS relevance_score
-          FROM address_points ap
-          JOIN LATERAL (
+          FROM address_candidates ap
+          LEFT JOIN LATERAL (
             SELECT
               p.parcel_key,
               p.situs_address,
@@ -503,10 +684,6 @@ propertiesRouter.get(
             ORDER BY ST_Distance(ST_PointOnSurface(p.geom), ap.geom) ASC
             LIMIT 1
           ) p ON TRUE
-          WHERE
-            ap.address_label ILIKE $1
-            OR ap.normalized_address ILIKE $3
-            OR ap.normalized_address ILIKE $4
         ),
         combined AS (
           SELECT * FROM parcel_ranked
@@ -517,7 +694,7 @@ propertiesRouter.get(
           SELECT
             *,
             ROW_NUMBER() OVER (
-              PARTITION BY parcel_key
+              PARTITION BY dedupe_key
               ORDER BY
                 relevance_bucket ASC,
                 relevance_score DESC,
@@ -547,7 +724,7 @@ propertiesRouter.get(
           parcel_key ASC
         LIMIT $5
       `,
-      [wildcard, prefix, normalizedWildcard, tokenWildcard, parsed.data.limit, normalizedQuery, normalizedPrefix]
+      [wildcard, prefix, normalizedWildcard, tokenWildcard, parsed.data.limit, normalizedQuery, normalizedPrefix, streetOnlyWildcard]
     );
 
     await logUserActivity(
