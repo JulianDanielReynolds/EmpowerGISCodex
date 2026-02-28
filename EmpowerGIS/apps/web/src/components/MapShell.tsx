@@ -671,6 +671,7 @@ export default function MapShell({
   const [measurementMode, setMeasurementMode] = useState<MeasurementMode>("distance");
   const [measurementPoints, setMeasurementPoints] = useState<MeasurementPoint[]>([]);
   const [measurementValue, setMeasurementValue] = useState("0 ft");
+  const [isLayersPanelOpen, setIsLayersPanelOpen] = useState(false);
 
   const canRenderMap = Boolean(MAPBOX_TOKEN && !MAPBOX_TOKEN.includes(PLACEHOLDER_MAPBOX_TOKEN));
   const authRequestOptions = useMemo(
@@ -682,9 +683,25 @@ export default function MapShell({
   );
 
   useEffect(() => {
+    if (!isLayersPanelOpen) return;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsLayersPanelOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [isLayersPanelOpen]);
+
+  useEffect(() => {
     if (!accessToken) {
       setLayers([]);
       setLayerVisibility({});
+      setIsLayersPanelOpen(false);
       return;
     }
 
@@ -1149,8 +1166,29 @@ export default function MapShell({
       </header>
 
       <section className={`content${shouldShowPropertyPanel ? " has-property-panel" : ""}`}>
-        <aside className="panel">
-          <h2>Layers ({activeLayerCount})</h2>
+        {isLayersPanelOpen ? (
+          <button
+            type="button"
+            className="layers-panel-backdrop"
+            aria-label="Close layers panel"
+            onClick={() => setIsLayersPanelOpen(false)}
+          />
+        ) : null}
+
+        <aside
+          id="layers-panel"
+          className={`panel layers-panel${isLayersPanelOpen ? " open" : ""}`}
+        >
+          <div className="panel-header layers-panel-header">
+            <h2>Layers ({activeLayerCount})</h2>
+            <button
+              type="button"
+              className="ghost panel-close"
+              onClick={() => setIsLayersPanelOpen(false)}
+            >
+              Close
+            </button>
+          </div>
           {layersError ? <p className="error">{layersError}</p> : null}
           <ul>
             {layers.map((layer) => (
@@ -1196,6 +1234,15 @@ export default function MapShell({
             />
             <button className="primary" type="button" onClick={triggerSearch}>
               {isSearching ? "..." : "Search"}
+            </button>
+            <button
+              className="ghost layers-toggle"
+              type="button"
+              aria-controls="layers-panel"
+              aria-expanded={isLayersPanelOpen}
+              onClick={() => setIsLayersPanelOpen((current) => !current)}
+            >
+              Layers
             </button>
             <button
               className={isMeasurementActive ? "primary measure-button" : "ghost measure-button"}

@@ -620,15 +620,30 @@ export default function MapShell({ user, accessToken, refreshToken, onSessionTok
     const [measurementMode, setMeasurementMode] = useState("distance");
     const [measurementPoints, setMeasurementPoints] = useState([]);
     const [measurementValue, setMeasurementValue] = useState("0 ft");
+    const [isLayersPanelOpen, setIsLayersPanelOpen] = useState(false);
     const canRenderMap = Boolean(MAPBOX_TOKEN && !MAPBOX_TOKEN.includes(PLACEHOLDER_MAPBOX_TOKEN));
     const authRequestOptions = useMemo(() => ({
         refreshToken,
         onSessionTokensUpdated
     }), [refreshToken, onSessionTokensUpdated]);
     useEffect(() => {
+        if (!isLayersPanelOpen)
+            return;
+        const handleEscape = (event) => {
+            if (event.key === "Escape") {
+                setIsLayersPanelOpen(false);
+            }
+        };
+        window.addEventListener("keydown", handleEscape);
+        return () => {
+            window.removeEventListener("keydown", handleEscape);
+        };
+    }, [isLayersPanelOpen]);
+    useEffect(() => {
         if (!accessToken) {
             setLayers([]);
             setLayerVisibility({});
+            setIsLayersPanelOpen(false);
             return;
         }
         let cancelled = false;
@@ -1014,7 +1029,7 @@ export default function MapShell({ user, accessToken, refreshToken, onSessionTok
             }
         })();
     }, [searchQuery, runSearch, selectSearchResult]);
-    return (_jsxs("main", { className: "app-layout", children: [_jsxs("header", { className: "top-bar", children: [_jsxs("div", { children: [_jsx("h1", { children: "EmpowerGIS" }), _jsx("p", { children: "Land Intelligence" })] }), _jsxs("div", { className: "top-bar-right", children: [_jsx("span", { children: user?.username ?? "Unknown user" }), onOpenAdmin ? (_jsx("button", { className: "ghost", onClick: onOpenAdmin, children: "Admin" })) : null, _jsx("button", { className: "ghost", onClick: onLogout, children: "Logout" }), _jsx("a", { className: "partner-logo-link", href: "https://empower-communities.com/", target: "_blank", rel: "noreferrer noopener", "aria-label": "Visit Empower Communities", children: _jsx("img", { className: "partner-logo", src: "/ec-logo.svg", alt: "Empower Communities" }) })] })] }), _jsxs("section", { className: `content${shouldShowPropertyPanel ? " has-property-panel" : ""}`, children: [_jsxs("aside", { className: "panel", children: [_jsxs("h2", { children: ["Layers (", activeLayerCount, ")"] }), layersError ? _jsx("p", { className: "error", children: layersError }) : null, _jsx("ul", { children: layers.map((layer) => (_jsx("li", { children: _jsxs("label", { children: [_jsx("input", { type: "checkbox", checked: Boolean(layerVisibility[layer.key]), disabled: layer.status !== "ready", onChange: (event) => setLayerVisibility((current) => ({
+    return (_jsxs("main", { className: "app-layout", children: [_jsxs("header", { className: "top-bar", children: [_jsxs("div", { children: [_jsx("h1", { children: "EmpowerGIS" }), _jsx("p", { children: "Land Intelligence" })] }), _jsxs("div", { className: "top-bar-right", children: [_jsx("span", { children: user?.username ?? "Unknown user" }), onOpenAdmin ? (_jsx("button", { className: "ghost", onClick: onOpenAdmin, children: "Admin" })) : null, _jsx("button", { className: "ghost", onClick: onLogout, children: "Logout" }), _jsx("a", { className: "partner-logo-link", href: "https://empower-communities.com/", target: "_blank", rel: "noreferrer noopener", "aria-label": "Visit Empower Communities", children: _jsx("img", { className: "partner-logo", src: "/ec-logo.svg", alt: "Empower Communities" }) })] })] }), _jsxs("section", { className: `content${shouldShowPropertyPanel ? " has-property-panel" : ""}`, children: [isLayersPanelOpen ? (_jsx("button", { type: "button", className: "layers-panel-backdrop", "aria-label": "Close layers panel", onClick: () => setIsLayersPanelOpen(false) })) : null, _jsxs("aside", { id: "layers-panel", className: `panel layers-panel${isLayersPanelOpen ? " open" : ""}`, children: [_jsxs("div", { className: "panel-header layers-panel-header", children: [_jsxs("h2", { children: ["Layers (", activeLayerCount, ")"] }), _jsx("button", { type: "button", className: "ghost panel-close", onClick: () => setIsLayersPanelOpen(false), children: "Close" })] }), layersError ? _jsx("p", { className: "error", children: layersError }) : null, _jsx("ul", { children: layers.map((layer) => (_jsx("li", { children: _jsxs("label", { children: [_jsx("input", { type: "checkbox", checked: Boolean(layerVisibility[layer.key]), disabled: layer.status !== "ready", onChange: (event) => setLayerVisibility((current) => ({
                                                     ...current,
                                                     [layer.key]: event.target.checked
                                                 })) }), _jsx("span", { children: layer.name })] }) }, layer.key))) })] }), _jsxs("section", { className: "map-stage", children: [_jsxs("div", { className: "map-toolbar", children: [_jsx("input", { value: searchQuery, onChange: (event) => {
@@ -1029,7 +1044,7 @@ export default function MapShell({ user, accessToken, refreshToken, onSessionTok
                                                 event.preventDefault();
                                                 triggerSearch();
                                             }
-                                        }, placeholder: "Search by address, owner, or parcel key" }), _jsx("button", { className: "primary", type: "button", onClick: triggerSearch, children: isSearching ? "..." : "Search" }), _jsx("button", { className: isMeasurementActive ? "primary measure-button" : "ghost measure-button", type: "button", onClick: () => {
+                                        }, placeholder: "Search by address, owner, or parcel key" }), _jsx("button", { className: "primary", type: "button", onClick: triggerSearch, children: isSearching ? "..." : "Search" }), _jsx("button", { className: "ghost layers-toggle", type: "button", "aria-controls": "layers-panel", "aria-expanded": isLayersPanelOpen, onClick: () => setIsLayersPanelOpen((current) => !current), children: "Layers" }), _jsx("button", { className: isMeasurementActive ? "primary measure-button" : "ghost measure-button", type: "button", onClick: () => {
                                             if (isMeasurementActive) {
                                                 closeMeasurement();
                                                 return;
