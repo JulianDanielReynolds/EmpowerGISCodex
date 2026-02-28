@@ -103,6 +103,55 @@ function formatPropertyAddress(address: string | null | undefined): string | nul
   return formatted.join(" ");
 }
 
+const propertyByParcelKeyQueryTemplate = `
+  SELECT
+    p.parcel_key,
+    COALESCE(NULLIF(ap.address_label, ''), NULLIF(p.situs_address, '')) AS situs_address,
+    p.owner_name,
+    p.owner_mailing_address,
+    p.legal_description,
+    p.acreage,
+    p.county_name,
+    p.land_value,
+    p.improvement_value,
+    p.market_value,
+    COALESCE(NULLIF(p.zoning_code, ''), z.zoning_code) AS zoning_code,
+    ST_X(ST_PointOnSurface(p.geom)) AS longitude,
+    ST_Y(ST_PointOnSurface(p.geom)) AS latitude
+  FROM parcels p
+  LEFT JOIN LATERAL (
+    SELECT zd.zoning_code
+    FROM zoning_districts zd
+    WHERE ST_Intersects(zd.geom, p.geom)
+    LIMIT 1
+  ) z ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT ap.address_label
+    FROM address_points ap
+    WHERE
+      ST_Intersects(ap.geom, p.geom)
+      OR ST_DWithin(ap.geom, ST_PointOnSurface(p.geom), 0.003)
+    ORDER BY
+      CASE
+        WHEN ST_Intersects(ap.geom, p.geom) THEN 0
+        ELSE 1
+      END ASC,
+      ST_Distance(ap.geom, ST_PointOnSurface(p.geom)) ASC
+    LIMIT 1
+  ) ap ON TRUE
+  WHERE __PARCEL_KEY_MATCH__
+  LIMIT 1
+`;
+
+const propertyByParcelKeyExactQuery = propertyByParcelKeyQueryTemplate.replace(
+  "__PARCEL_KEY_MATCH__",
+  "p.parcel_key = $1"
+);
+const propertyByParcelKeyCaseInsensitiveQuery = propertyByParcelKeyQueryTemplate.replace(
+  "__PARCEL_KEY_MATCH__",
+  "UPPER(p.parcel_key) = UPPER($1)"
+);
+
 propertiesRouter.get(
   "/by-coordinates",
   requireAuth,
@@ -250,48 +299,14 @@ propertiesRouter.get(
     }
 
     const parcelKey = parsed.data.parcelKey;
-    const result = await pool.query(
-      `
-        SELECT
-          p.parcel_key,
-          COALESCE(NULLIF(ap.address_label, ''), NULLIF(p.situs_address, '')) AS situs_address,
-          p.owner_name,
-          p.owner_mailing_address,
-          p.legal_description,
-          p.acreage,
-          p.county_name,
-          p.land_value,
-          p.improvement_value,
-          p.market_value,
-          COALESCE(NULLIF(p.zoning_code, ''), z.zoning_code) AS zoning_code,
-          ST_X(ST_PointOnSurface(p.geom)) AS longitude,
-          ST_Y(ST_PointOnSurface(p.geom)) AS latitude
-        FROM parcels p
-        LEFT JOIN LATERAL (
-          SELECT zd.zoning_code
-          FROM zoning_districts zd
-          WHERE ST_Intersects(zd.geom, p.geom)
-          LIMIT 1
-        ) z ON TRUE
-        LEFT JOIN LATERAL (
-          SELECT ap.address_label
-          FROM address_points ap
-          WHERE
-            ST_Intersects(ap.geom, p.geom)
-            OR ST_DWithin(ap.geom, ST_PointOnSurface(p.geom), 0.003)
-          ORDER BY
-            CASE
-              WHEN ST_Intersects(ap.geom, p.geom) THEN 0
-              ELSE 1
-            END ASC,
-            ST_Distance(ap.geom, ST_PointOnSurface(p.geom)) ASC
-          LIMIT 1
-        ) ap ON TRUE
-        WHERE UPPER(p.parcel_key) = UPPER($1)
-        LIMIT 1
-      `,
-      [parcelKey]
-    );
+    let parcelKeyMatchMode: "exact" | "case_insensitive" = "exact";
+    let result = await pool.query(propertyByParcelKeyExactQuery, [parcelKey]);
+
+    // Keep case-insensitive behavior for edge cases, but only after the indexed exact lookup.
+    if (result.rowCount === 0) {
+      result = await pool.query(propertyByParcelKeyCaseInsensitiveQuery, [parcelKey]);
+      parcelKeyMatchMode = "case_insensitive";
+    }
 
     if (result.rowCount === 0) {
       await logUserActivity("property_lookup_miss", { parcelKey }, req.auth.userId);
@@ -319,7 +334,8 @@ propertiesRouter.get(
       "property_lookup_hit",
       {
         parcelKey: row.parcel_key,
-        source: "parcel_key"
+        source: "parcel_key",
+        matchMode: parcelKeyMatchMode
       },
       req.auth.userId
     );
