@@ -500,10 +500,6 @@ body {
     padding: 0.65rem 0.75rem;
   }
 
-  .top-bar p {
-    display: none;
-  }
-
   .top-bar-right > span {
     max-width: 46vw;
     overflow: hidden;
