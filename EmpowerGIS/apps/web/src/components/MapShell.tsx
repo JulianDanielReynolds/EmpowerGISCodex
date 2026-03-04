@@ -314,6 +314,41 @@ function buildLayerDefinitions(layerKey: string, sourceId: string): AnyLayer[] {
             "line-width": 1.4,
             "line-opacity": 0.98
           }
+        } as AnyLayer,
+        {
+          id: "layer-zoning-label",
+          type: "symbol",
+          source: sourceId,
+          "source-layer": "zoning",
+          minzoom: 10.5,
+          layout: {
+            "text-field": [
+              "case",
+              [">", ["length", ["coalesce", ["get", "zoning_code"], ""]], 0],
+              ["get", "zoning_code"],
+              ["coalesce", ["get", "zoning_label"], ""]
+            ],
+            "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
+            "text-size": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              10.5,
+              10,
+              13,
+              12,
+              16,
+              14
+            ],
+            "text-max-width": 8,
+            "text-letter-spacing": 0.02
+          },
+          paint: {
+            "text-color": "#0f172a",
+            "text-halo-color": "#ffffff",
+            "text-halo-width": 1.1,
+            "text-opacity": 0.92
+          }
         } as AnyLayer
       ];
     case "water-infrastructure":
